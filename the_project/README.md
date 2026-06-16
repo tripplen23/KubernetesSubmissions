@@ -10,6 +10,12 @@ A simple web server — the main project for the DevOps with Kubernetes course.
 | `/api/health` | GET | `{"status":"ok"}` |
 | `/api/todos` | GET | `[]` (placeholder) |
 
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | TCP port the server listens on |
+
 ### Build and push
 
 ```bash
