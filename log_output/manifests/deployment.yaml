@@ -14,5 +14,5 @@ spec:
     spec:
       containers:
       - name: log-output
-        image: YOUR_DOCKERHUB_USERNAME/log-output:latest
+        image: tripplen23/log-output:latest
         imagePullPolicy: Always
