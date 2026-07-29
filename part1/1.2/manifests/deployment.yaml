@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: todo-app
-          image: tripplen23/todo-app:1.2
+          image: tripplen63/todo-app:1.2
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

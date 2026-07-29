@@ -13,7 +13,7 @@
 ## Solution
 
 - **Source**: see [`src/main.rs`](./src/main.rs) — Rust 1.85 + tokio + uuid + chrono
-- **Image**: [`tripplen23/log-output:1.1`](https://hub.docker.com/r/tripplen23/log-output/tags)
+- **Image**: [`tripplen63/log-output:1.1`](https://hub.docker.com/r/tripplen63/log-output/tags)
 - **Manifest**: [`manifests/deployment.yaml`](./manifests/deployment.yaml)
 - **Dockerfile**: multi-stage (`rust:1.85-slim` builder → `debian:bookworm-slim` runtime)
 
@@ -21,8 +21,8 @@
 
 ```bash
 cd part1/1.1
-docker build -t tripplen23/log-output:1.1 .
-docker push tripplen23/log-output:1.1
+docker build -t tripplen63/log-output:1.1 .
+docker push tripplen63/log-output:1.1
 ```
 
 ### Deploy

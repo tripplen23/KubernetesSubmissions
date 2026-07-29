@@ -6,10 +6,10 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 
 | Folder | Exercise | App | Image | Submit link |
 |---|---|---|---|---|
-| [`part1/1.1/`](./part1/1.1) | 1.1 — Getting started | `log_output` (Rust + tokio) | `tripplen23/log-output:1.1` | [tag `1.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.1/part1/1.1) |
-| [`part1/1.2/`](./part1/1.2) | 1.2 — Project v0.1 | `todo-app` (Rust + axum) | `tripplen23/todo-app:1.2` | [tag `1.2`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.2/part1/1.2) |
-| [`part1/1.3/`](./part1/1.3) | 1.3 — Declarative approach | `log_output` (manifests) | `tripplen23/log-output:1.3` | [tag `1.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.3/part1/1.3) |
-| [`part1/1.4/`](./part1/1.4) | 1.4 — Project v0.2 | `todo-app` (manifests) | `tripplen23/todo-app:1.4` | [tag `1.4`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.4/part1/1.4) |
+| [`part1/1.1/`](./part1/1.1) | 1.1 — Getting started | `log_output` (Rust + tokio) | `tripplen63/log-output:1.1` | [tag `1.1`](https://github.com/tripplen63/KubernetesSubmissions/tree/1.1/part1/1.1) |
+| [`part1/1.2/`](./part1/1.2) | 1.2 — Project v0.1 | `todo-app` (Rust + axum) | `tripplen63/todo-app:1.2` | [tag `1.2`](https://github.com/tripplen63/KubernetesSubmissions/tree/1.2/part1/1.2) |
+| [`part1/1.3/`](./part1/1.3) | 1.3 — Declarative approach | `log_output` (manifests) | `tripplen63/log-output:1.3` | [tag `1.3`](https://github.com/tripplen63/KubernetesSubmissions/tree/1.3/part1/1.3) |
+| [`part1/1.4/`](./part1/1.4) | 1.4 — Project v0.2 | `todo-app` (manifests) | `tripplen63/todo-app:1.4` | [tag `1.4`](https://github.com/tripplen63/KubernetesSubmissions/tree/1.4/part1/1.4) |
 
 > Submission rule used in this course: the submission link is the
 > **GitHub repository URL pinned to a tag** that matches the exercise number

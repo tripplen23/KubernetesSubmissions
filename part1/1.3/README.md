@@ -10,7 +10,7 @@
 ## Solution
 
 - **Source**: see [`src/main.rs`](./src/main.rs) — same Rust binary as 1.1
-- **Image**: [`tripplen23/log-output:1.3`](https://hub.docker.com/r/tripplen23/log-output/tags)
+- **Image**: [`tripplen63/log-output:1.3`](https://hub.docker.com/r/tripplen63/log-output/tags)
 - **Manifest**: [`manifests/deployment.yaml`](./manifests/deployment.yaml) — labelled, `imagePullPolicy: Always`
 
 This exercise focuses on the *workflow*: commit manifest → `kubectl apply -f`

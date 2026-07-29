@@ -10,7 +10,7 @@
 ## Solution
 
 - **Source**: see [`src/main.rs`](./src/main.rs) — same Rust binary as 1.2
-- **Image**: [`tripplen23/todo-app:1.4`](https://hub.docker.com/r/tripplen23/todo-app/tags)
+- **Image**: [`tripplen63/todo-app:1.4`](https://hub.docker.com/r/tripplen63/todo-app/tags)
 - **Manifests**:
   - [`manifests/deployment.yaml`](./manifests/deployment.yaml)
   - [`manifests/service.yaml`](./manifests/service.yaml)
@@ -50,7 +50,7 @@ curl http://localhost:3000/api/health
 ```bash
 cd part1/1.4
 # Code change → rebuild & push:
-docker build -t tripplen23/todo-app:1.4 . && docker push tripplen23/todo-app:1.4
+docker build -t tripplen63/todo-app:1.4 . && docker push tripplen63/todo-app:1.4
 
 # Force the Deployment to roll out the new image:
 kubectl delete pod -l app=todo-app

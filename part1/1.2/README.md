@@ -13,7 +13,7 @@
 ## Solution
 
 - **Source**: see [`src/main.rs`](./src/main.rs) — Rust 1.85 + axum 0.8 + tokio + serde
-- **Image**: [`tripplen23/todo-app:1.2`](https://hub.docker.com/r/tripplen23/todo-app/tags)
+- **Image**: [`tripplen63/todo-app:1.2`](https://hub.docker.com/r/tripplen63/todo-app/tags)
 - **Manifests**:
   - [`manifests/deployment.yaml`](./manifests/deployment.yaml) — Deployment, `PORT=3000`
   - [`manifests/service.yaml`](./manifests/service.yaml) — ClusterIP service
@@ -30,8 +30,8 @@
 
 ```bash
 cd part1/1.2
-docker build -t tripplen23/todo-app:1.2 .
-docker push tripplen23/todo-app:1.2
+docker build -t tripplen63/todo-app:1.2 .
+docker push tripplen63/todo-app:1.2
 ```
 
 ### Deploy
@@ -57,6 +57,6 @@ curl http://localhost:3000/
 ### Replace the pod after a rebuild
 
 ```bash
-docker build -t tripplen23/todo-app:1.2 . && docker push tripplen23/todo-app:1.2
+docker build -t tripplen63/todo-app:1.2 . && docker push tripplen63/todo-app:1.2
 kubectl delete pod -l app=todo-app   # Deployment re-creates the pod with the new image
 ```
