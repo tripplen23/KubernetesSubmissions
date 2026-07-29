@@ -1,0 +1,9 @@
+[package]
+name = "log_output"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = { version = "1.7", features = ["v4"] }
+chrono = "0.4"
+tokio = { version = "1.36", features = ["full"] }
