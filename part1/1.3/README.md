@@ -19,6 +19,7 @@ This exercise focuses on the *workflow*: commit manifest → `kubectl apply -f`
 ### Deploy
 
 ```bash
+cd part1/1.3
 kubectl apply -f manifests/deployment.yaml
 kubectl get deploy,pods -l app=log-output
 kubectl logs -f -l app=log-output

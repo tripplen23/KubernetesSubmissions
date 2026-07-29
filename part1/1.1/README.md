@@ -20,7 +20,7 @@
 ### Build & run locally
 
 ```bash
-cd 1.1
+cd part1/1.1
 docker build -t tripplen23/log-output:1.1 .
 docker push tripplen23/log-output:1.1
 ```

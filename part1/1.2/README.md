@@ -29,7 +29,7 @@
 ### Build & run locally
 
 ```bash
-cd 1.2
+cd part1/1.2
 docker build -t tripplen23/todo-app:1.2 .
 docker push tripplen23/todo-app:1.2
 ```

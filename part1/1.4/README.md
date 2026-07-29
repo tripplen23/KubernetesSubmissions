@@ -29,6 +29,7 @@ Both manifests are versioned and live in the repo — no more imperative
 ### Deploy
 
 ```bash
+cd part1/1.4
 kubectl apply -f manifests/deployment.yaml
 kubectl apply -f manifests/service.yaml
 ```
@@ -47,6 +48,7 @@ curl http://localhost:3000/api/health
 ### Roll back / update
 
 ```bash
+cd part1/1.4
 # Code change → rebuild & push:
 docker build -t tripplen23/todo-app:1.4 . && docker push tripplen23/todo-app:1.4
 
