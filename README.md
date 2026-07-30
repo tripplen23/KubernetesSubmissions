@@ -12,6 +12,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part1/1.3/`](./part1/1.3) | 1.3 — Declarative approach | `log_output` (manifests) | `tripplen63/log-output:1.3` | [tag `1.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.3/part1/1.3) |
 | [`part1/1.4/`](./part1/1.4) | 1.4 — Project v0.2 | `todo-app` (manifests) | `tripplen63/todo-app:1.4` | [tag `1.4`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.4/part1/1.4) |
 | [`part1/1.5/`](./part1/1.5) | 1.5 — Project, step 3 (HTML) | `todo-app` (HTML landing page) | `tripplen63/todo-app:1.5` | [tag `1.5`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.5/part1/1.5) |
+| [`part1/1.6/`](./part1/1.6) | 1.6 — Project, step 4 (NodePort) | `todo-app` (NodePort Service) | `tripplen63/todo-app:1.6` | [tag `1.6`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.6/part1/1.6) |
 
 ## Prerequisites
 

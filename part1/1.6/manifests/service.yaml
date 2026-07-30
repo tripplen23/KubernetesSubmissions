@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-app
+  labels:
+    app: todo-app
+spec:
+  # NodePort opens the same port on EVERY node in the cluster, and
+  # the node forwards to the matching pods. The k3d cluster was
+  # created with `--port 8082:30080@agent:0` so the agent node's
+  # port 30080 is reachable from the host as localhost:8082.
+  type: NodePort
+  selector:
+    app: todo-app
+  ports:
+    - name: http
+      # Service's cluster-internal port (other pods call this).
+      port: 3000
+      # The container port to forward to.
+      targetPort: 3000
+      # Port opened on every node. Must be 30000-32767.
+      # 30080 was chosen by the course; 8082 on the host maps to it.
+      nodePort: 30080
+      protocol: TCP
