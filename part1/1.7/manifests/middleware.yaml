@@ -1,0 +1,19 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix-log
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /log
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix-todo
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /todo

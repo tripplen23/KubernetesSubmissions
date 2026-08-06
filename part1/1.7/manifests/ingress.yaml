@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apps-log
+  labels:
+    app: apps
+  annotations:
+    # Force Traefik to route via entrypoint 'web' (port 80/8000).
+    # Without this, k3d's Traefik binds the rule to 'websecure'
+    # (port 8443), which the k3d port mapping doesn't expose → 404.
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # Strip the /log prefix before forwarding to the service.
+    traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix-log@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /log
+            pathType: Prefix
+            backend:
+              service:
+                name: log-output
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apps-todo
+  labels:
+    app: apps
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix-todo@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /todo
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-app
+                port:
+                  number: 3000
