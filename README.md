@@ -17,6 +17,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part1/1.8/`](./part1/1.8) | 1.8 — Ingress instead of NodePort | `todo-app` (Ingress, ClusterIP) | `tripplen63/todo-app:1.8` | [tag `1.8`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.8/part1/1.8) |
 | [`part1/1.9/`](./part1/1.9) | 1.9 — More services | `ping-pong` (counter) + log-output | `tripplen63/ping-pong:1.9` | [tag `1.9`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.9/part1/1.9) |
 | [`part1/1.10/`](./part1/1.10) | 1.10 — Even more services (emptyDir) | `log-output` (writer + reader) | `tripplen63/log-output:1.10` | [tag `1.10`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.10/part1/1.10) |
+| [`part1/1.11/`](./part1/1.11) | 1.11 — Persisting data (PV/PVC) | `ping-pong` + `log-output` (shared PV) | `tripplen63/ping-pong:1.11`, `tripplen63/log-output:1.11` | [tag `1.11`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.11/part1/1.11) |
 
 ## Prerequisites
 
