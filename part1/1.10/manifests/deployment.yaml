@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-output
+  labels:
+    app: log-output
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-output
+  template:
+    metadata:
+      labels:
+        app: log-output
+    spec:
+      volumes: # pod-level: the shared volume
+        - name: shared-log
+          emptyDir: {}
+      containers:
+        - name: writer
+          image: tripplen63/log-output:1.10
+          imagePullPolicy: Always
+          env:
+            - name: ROLE
+              value: "writer"
+            - name: FILE_PATH
+              value: "/usr/src/app/files/timestamp.txt"
+          volumeMounts:
+            - name: shared-log
+              mountPath: /usr/src/app/files
+        - name: reader
+          image: tripplen63/log-output:1.10
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: ROLE
+              value: "reader"
+            - name: PORT
+              value: "3000"
+            - name: FILE_PATH
+              value: "/usr/src/app/files/timestamp.txt"
+          volumeMounts:
+            - name: shared-log
+              mountPath: /usr/src/app/files
