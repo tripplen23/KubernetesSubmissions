@@ -19,6 +19,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part1/1.10/`](./part1/1.10) | 1.10 — Even more services (emptyDir) | `log-output` (writer + reader) | `tripplen63/log-output:1.10` | [tag `1.10`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.10/part1/1.10) |
 | [`part1/1.11/`](./part1/1.11) | 1.11 — Persisting data (PV/PVC) | `ping-pong` + `log-output` (shared PV) | `tripplen63/ping-pong:1.11`, `tripplen63/log-output:1.11` | [tag `1.11`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.11/part1/1.11) |
 | [`part1/1.12/`](./part1/1.12) | 1.12 — The project, step 6 (hourly image) | `todo-app` (hourly picture from Lorem Picsum, cached on PV) | `tripplen63/todo-app:1.12` | [tag `1.12`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.12/part1/1.12) |
+| [`part1/1.13/`](./part1/1.13) | 1.13 — The project, step 7 (todo UI) | `todo-app` (input ≤140 chars + Send button + hardcoded todos) | `tripplen63/todo-app:1.13` | [tag `1.13`](https://github.com/tripplen23/KubernetesSubmissions/tree/1.13/part1/1.13) |
 
 ## Prerequisites
 
