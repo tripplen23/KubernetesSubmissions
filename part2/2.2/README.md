@@ -69,7 +69,7 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
   (empty / >140 → 400), forwards a JSON `{"title": ...}` to the
   backend with a `reqwest` client, then `Redirect::to("/")` (303).
 - `/image` + `/api/health` unchanged from 1.12/1.13.
-- `TODO_BACKEND_URL` env var, default `http://todo-backend-svc:3000`
+- `TODO_BACKEND_URL` env var, default `http://todo-backend-svc:2345`
   (the Service DNS name — pod-to-pod HTTP as in 2.1).
 
 verify locally:
@@ -140,14 +140,14 @@ kubectl get pods
 
 kubectl get svc
 # todo-app-svc       ClusterIP   10.43.x.x   3000/TCP
-# todo-backend-svc   ClusterIP   10.43.x.x   3000/TCP
+# todo-backend-svc   ClusterIP   10.43.x.x   2345/TCP
 ```
 
 ## Step 4 — Verify
 
 ```bash
 # 1. The backend works (direct from your machine via port-forward first)
-kubectl port-forward svc/todo-backend-svc 3004:3000 &
+kubectl port-forward svc/todo-backend-svc 3004:2345 &
 curl -s localhost:3004/todos                          # []
 curl -s -X POST localhost:3004/todos -H "Content-Type: application/json" \
   -d '{"title":"Learn Kubernetes"}' -w " %{http_code}\n"

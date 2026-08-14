@@ -16,7 +16,7 @@ const IMAGE_URL: &str = "https://picsum.photos/1200";
 /// The image stays the same for 10 minutes.
 const MAX_AGE_SECS: u64 = 600;
 /// The todo-backend service, reached via its Kubernetes Service DNS name.
-const DEFAULT_TODO_BACKEND_URL: &str = "http://todo-backend-svc:3000";
+const DEFAULT_TODO_BACKEND_URL: &str = "http://todo-backend-svc:2345";
 
 #[derive(Serialize)]
 struct Status {

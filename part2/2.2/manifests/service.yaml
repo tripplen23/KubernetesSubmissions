@@ -26,6 +26,6 @@ spec:
     app: todo-backend
   ports:
     - name: http
-      port: 3000
+      port: 2345
       targetPort: 3000
       protocol: TCP

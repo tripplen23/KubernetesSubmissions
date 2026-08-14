@@ -30,7 +30,7 @@ spec:
             - name: IMAGE_PATH
               value: "/usr/src/app/files/image.jpg"
             - name: TODO_BACKEND_URL
-              value: "http://todo-backend-svc:3000"
+              value: "http://todo-backend-svc:2345"
           volumeMounts:
             - name: image-storage
               mountPath: /usr/src/app/files
