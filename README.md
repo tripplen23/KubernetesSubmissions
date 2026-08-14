@@ -28,6 +28,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | Folder | Exercise | App | Image | Submit link |
 |---|---|---|---|---|
 | [`part2/2.1/`](./part2/2.1) | 2.1 — Connecting pods | `ping-pong` + `log-output` (HTTP between pods, no shared volume) | `tripplen63/ping-pong:2.1`, `tripplen63/log-output:2.1` | [tag `2.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.1/part2/2.1) |
+| [`part2/2.2/`](./part2/2.2) | 2.2 — The project, step 8 (todo-backend) | `todo-app` (UI) + `todo-backend` (GET/POST /todos, in-memory) | `tripplen63/todo-app:2.2`, `tripplen63/todo-backend:2.2` | [tag `2.2`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.2/part2/2.2) |
 
 ## Prerequisites
 
