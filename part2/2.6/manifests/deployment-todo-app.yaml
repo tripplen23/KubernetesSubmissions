@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-app
+  namespace: project
+  labels:
+    app: todo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-app
+  template:
+    metadata:
+      labels:
+        app: todo-app
+    spec:
+      volumes:
+        - name: image-storage
+          persistentVolumeClaim:
+            claimName: image-claim
+      containers:
+        - name: todo-app
+          image: tripplen63/todo-app:2.6
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: todo-config
+          env:
+            - name: PORT
+              value: "3000"
+          volumeMounts:
+            - name: image-storage
+              mountPath: /usr/src/app/files

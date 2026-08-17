@@ -32,6 +32,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part2/2.3/`](./part2/2.3) | 2.3 — Keep them separated (namespaces) | `ping-pong` + `log-output` moved to namespace `exercises` | `tripplen63/ping-pong:2.1`, `tripplen63/log-output:2.1` | [tag `2.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.3/part2/2.3) |
 | [`part2/2.4/`](./part2/2.4) | 2.4 — The project, step 9 (namespace) | `todo-app` + `todo-backend` moved to namespace `project` | `tripplen63/todo-app:2.2`, `tripplen63/todo-backend:2.2` | [tag `2.4`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.4/part2/2.4) |
 | [`part2/2.5/`](./part2/2.5) | 2.5 — Documentation and ConfigMaps | `log-output` reads ConfigMap file + env (namespace `exercises`) | `tripplen63/log-output:2.5`, `tripplen63/ping-pong:2.1` | [tag `2.5`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.5/part2/2.5) |
+| [`part2/2.6/`](./part2/2.6) | 2.6 — The project, step 10 (no hardcoded config) | `todo-app` + `todo-backend` config via ConfigMap/env (namespace `project`) | `tripplen63/todo-app:2.6`, `tripplen63/todo-backend:2.6` | [tag `2.6`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.6/part2/2.6) |
 
 ## Prerequisites
 
