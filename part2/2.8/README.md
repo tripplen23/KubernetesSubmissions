@@ -50,38 +50,6 @@ tokio-postgres = "0.7"
 
 ## Step 1 — build + push the Dockerfiles (todo-backend changed, todo-app reused)
 
-### `todo-app/Dockerfile` (unchanged source — kept for self-containment)
-
-```dockerfile
-FROM rust:1.85-slim AS builder
-WORKDIR /app
-COPY Cargo.toml Cargo.lock* ./
-COPY src ./src
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/todo-app /usr/local/bin/todo-app
-EXPOSE 3000
-CMD ["/usr/local/bin/todo-app"]
-```
-
-### `todo-backend/Dockerfile`
-
-```dockerfile
-FROM rust:1.85-slim AS builder
-WORKDIR /app
-COPY Cargo.toml Cargo.lock* ./
-COPY src ./src
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/todo-backend /usr/local/bin/todo-backend
-EXPOSE 3000
-CMD ["/usr/local/bin/todo-backend"]
-```
-
 ```bash
 cd todo-app
 docker build -t tripplen63/todo-app:2.6 .

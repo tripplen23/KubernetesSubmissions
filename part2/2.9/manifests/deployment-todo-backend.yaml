@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+  namespace: project
+  labels:
+    app: todo-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-backend
+  template:
+    metadata:
+      labels:
+        app: todo-backend
+    spec:
+      containers:
+        - name: todo-backend
+          image: tripplen63/todo-backend:2.8
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: POSTGRES_USER
+              valueFrom:
+                {
+                  configMapKeyRef:
+                    { name: postgres-config, key: POSTGRES_USER },
+                }
+            - name: POSTGRES_HOST
+              valueFrom:
+                {
+                  configMapKeyRef:
+                    { name: postgres-config, key: POSTGRES_HOST },
+                }
+            - name: POSTGRES_PORT
+              valueFrom:
+                {
+                  configMapKeyRef:
+                    { name: postgres-config, key: POSTGRES_PORT },
+                }
+            - name: POSTGRES_DB
+              valueFrom:
+                { configMapKeyRef: { name: postgres-config, key: POSTGRES_DB } }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                {
+                  secretKeyRef:
+                    { name: postgres-secret, key: POSTGRES_PASSWORD },
+                }
