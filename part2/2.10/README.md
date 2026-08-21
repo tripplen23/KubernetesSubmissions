@@ -209,6 +209,3 @@ kubectl delete namespace monitoring
 5. **Request logging** in the backend is what makes the exercise observable —
    stdout → Alloy → Loki → Grafana. The 140-char limit was already enforced;
    logging surfaces the `400` rejections.
-6. **Self-contained lab**: the whole project _and_ the whole monitoring
-   stack run from a clean cluster — everything (Dockerfiles, manifests,
-   values, script) is spelled out above for you to hand-type 👍.
