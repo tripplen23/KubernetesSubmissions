@@ -36,6 +36,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part2/2.7/`](./part2/2.7) | 2.7 — Stateful applications | `ping-pong` counter in Postgres StatefulSet (namespace `exercises`) | `tripplen63/ping-pong:2.7` | [tag `2.7`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.7/part2/2.7) |
 | [`part2/2.8/`](./part2/2.8) | 2.8 — The project, step 11 (todos in Postgres) | `todo-backend` stores todos in Postgres StatefulSet via Secret/ConfigMap (namespace `project`) | `tripplen63/todo-backend:2.8`, `tripplen63/todo-app:2.6` | [tag `2.8`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.8/part2/2.8) |
 | [`part2/2.9/`](./part2/2.9) | 2.9 — The project, step 12 (CronJob) | CronJob adds a "Read \<URL\>" todo every hour (Wikipedia random) | `tripplen63/todo-cron:2.9` + project `todo-app:2.6`, `todo-backend:2.8` | [tag `2.9`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.9/part2/2.9) |
+| [`part2/2.10/`](./part2/2.10) | 2.10 — The project, step 13 (request logging + monitoring) | request logging in backend; 140-char limit; Prometheus+Loki+Alloy+Grafana stack via Helm | `tripplen63/todo-backend:2.10` + project `todo-app:2.6`, `todo-cron:2.9` | [tag `2.10`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.10/part2/2.10) |
 
 ## Prerequisites
 

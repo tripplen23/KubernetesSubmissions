@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-cron
+  namespace: project
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: todo-cron
+              image: tripplen63/todo-cron:2.9
+              imagePullPolicy: Always
+              env:
+                - name: TODO_BACKEND_URL
+                  value: "http://todo-backend-svc:2345"

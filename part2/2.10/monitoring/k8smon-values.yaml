@@ -1,0 +1,17 @@
+cluster:
+  name: my-cluster
+destinations:
+  loki:
+    type: loki
+    url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+    tenantId: "1"
+podLogsViaLoki:
+  enabled: true
+collectors:
+  alloy-logs:
+    presets:
+      - small
+      - filesystem-log-reader
+      - daemonset
+selfReporting:
+  enabled: false

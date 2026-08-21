@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-config
+  namespace: project
+data:
+  TODO_BACKEND_URL: http://todo-backend-svc:2345
+  IMAGE_URL: https://picsum.photos/1200
+  IMAGE_PATH: /usr/src/app/files/image.jpg
+  MAX_AGE_SECS: "600"
