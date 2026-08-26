@@ -38,6 +38,12 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part2/2.9/`](./part2/2.9) | 2.9 — The project, step 12 (CronJob) | CronJob adds a "Read \<URL\>" todo every hour (Wikipedia random) | `tripplen63/todo-cron:2.9` + project `todo-app:2.6`, `todo-backend:2.8` | [tag `2.9`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.9/part2/2.9) |
 | [`part2/2.10/`](./part2/2.10) | 2.10 — The project, step 13 (request logging + monitoring) | request logging in backend; 140-char limit; Prometheus+Loki+Alloy+Grafana stack via Helm | `tripplen63/todo-backend:2.10` + project `todo-app:2.6`, `todo-cron:2.9` | [tag `2.10`](https://github.com/tripplen23/KubernetesSubmissions/tree/2.10/part2/2.10) |
 
+### Part 3
+
+| Folder | Exercise | App | Image | Submit link |
+|---|---|---|---|---|
+| [`part3/3.1/`](./part3/3.1) | 3.1 — Pingpong GKE | `ping-pong` app on GKE, exposed via LoadBalancer | `gcr.io/dwk-gke-506208/ping-pong:3.1` | [tag `3.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.1/part3/3.1) |
+
 ## Prerequisites
 
 A running Kubernetes cluster with `kubectl` connected to it. Quickstart with k3d:
