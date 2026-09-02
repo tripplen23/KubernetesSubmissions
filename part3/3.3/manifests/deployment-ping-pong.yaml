@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ping-pong
+  labels:
+    app: ping-pong
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ping-pong
+  template:
+    metadata:
+      labels:
+        app: ping-pong
+    spec:
+      containers:
+        - name: ping-pong
+          image: gcr.io/dwk-gke-506208/ping-pong:3.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
