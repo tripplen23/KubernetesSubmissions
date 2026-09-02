@@ -43,6 +43,8 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | Folder | Exercise | App | Image | Submit link |
 |---|---|---|---|---|
 | [`part3/3.1/`](./part3/3.1) | 3.1 — Pingpong GKE | `ping-pong` app on GKE, exposed via LoadBalancer | `gcr.io/dwk-gke-506208/ping-pong:3.1` | [tag `3.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.1/part3/3.1) |
+| [`part3/3.2/`](./part3/3.2) | 3.2 — Back to Ingress (GKE) | "Log output" + "Ping-pong" on GKE, exposed via Ingress (NodePort services) | `gcr.io/dwk-gke-506208/ping-pong:3.2`, `gcr.io/dwk-gke-506208/log-output:3.2` | [tag `3.2`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.2/part3/3.2) |
+| [`part3/3.3/`](./part3/3.3) | 3.3 — To the Gateway (GKE) | "Log output" + "Ping-pong" via Gateway API (Gateway + HTTPRoute, ClusterIP services) | `gcr.io/dwk-gke-506208/ping-pong:3.3`, `gcr.io/dwk-gke-506208/log-output:3.3` | [tag `3.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.3/part3/3.3) |
 
 ## Prerequisites
 
