@@ -44,7 +44,10 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 |---|---|---|---|---|
 | [`part3/3.1/`](./part3/3.1) | 3.1 — Pingpong GKE | `ping-pong` app on GKE, exposed via LoadBalancer | `gcr.io/dwk-gke-506208/ping-pong:3.1` | [tag `3.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.1/part3/3.1) |
 | [`part3/3.2/`](./part3/3.2) | 3.2 — Back to Ingress (GKE) | "Log output" + "Ping-pong" on GKE, exposed via Ingress (NodePort services) | `gcr.io/dwk-gke-506208/ping-pong:3.2`, `gcr.io/dwk-gke-506208/log-output:3.2` | [tag `3.2`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.2/part3/3.2) |
-| [`part3/3.3/`](./part3/3.3) | 3.3 — To the Gateway (GKE) | "Log output" + "Ping-pong" via Gateway API (Gateway + HTTPRoute, ClusterIP services) | `gcr.io/dwk-gke-506208/ping-pong:3.3`, `gcr.io/dwk-gke-506208/log-output:3.3` | [tag `3.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.3/part3/3.3) |
+| [`part3/3.3/`](./part3/3.3) | 3.3 — To the Gateway (GKE) | "Log output" + "Ping-pong" via Gateway (Gateway + HTTPRoute, ClusterIP services) | `gcr.io/dwk-gke-506208/ping-pong:3.3`, `gcr.io/dwk-gke-506208/log-output:3.3` | [tag `3.3`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.3/part3/3.3) |
+| [`part3/3.4/`](./part3/3.4) | 3.4 — Rewritten routing (GKE Gateway API) | "Log output" + "Ping-pong" via rewritten Gateway routing | `gcr.io/dwk-gke-506208/ping-pong:3.4`, `gcr.io/dwk-gke-506208/log-output:3.4` | [tag `3.4`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.4/part3/3.4) |
+| [`part3/3.5/`](./part3/3.5) | 3.5 — The project, step 14 (Kustomize + GKE) | `todo-app` + `todo-backend` + Postgres + CronJob deployed to GKE with Kustomize | `gcr.io/dwk-gke-506208/todo-app:3.5`, `todo-backend:3.5`, `todo-cron:3.5`, `postgres:16` | [tag `3.5`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.5/part3/3.5) |
+| [`part3/3.6/`](./part3/3.6) | 3.6 — The project, step 15: Deployment pipeline (GitHub Actions + OIDC) | full CI/CD: build → publish to Artifact Registry → deploy to GKE on every push | `europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/{todo-app,todo-backend,todo-cron}:<branch>-<sha>` | [main `part3/3.6`](https://github.com/tripplen23/KubernetesSubmissions/tree/main/part3/3.6) |
 
 ## Prerequisites
 
