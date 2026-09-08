@@ -4,39 +4,9 @@
 
 > **"Setup automatic deployment for the project as well."** — Exercise 3.6,
 > *Deployment Pipeline* (Chapter 4)
-
-In 3.5 you deployed the project **by hand** with Kustomize. This lab
-**automates the whole thing**: a **GitHub Actions pipeline** that, on every
-`git push`, **builds the images → publishes them to Google Artifact
-Registry → deploys them to GKE**. Push, and production updates itself.
-
-> ⚠️ The material's page also contains exercises 3.7 (separate environment
-> per branch) and 3.8 (delete environment on branch delete) — they REUSE
-> this same pipeline. Do this lab first; it is the foundation.
-
-**How to use this lab — HARD RULE (read it):** only the app **source code**
-is provided (`todo-app/`, `todo-backend/`, `todo-cron/`). You must
-**hand-type everything else** yourself, exactly as in previous labs:
-- the 3 **Dockerfiles**,
-- the **9 manifests** + `kustomization.yaml` (full content below),
-- the **GitHub Actions workflow** (full content below).
-
-Do **not** copy-paste from anywhere — type each file yourself. Every file
-you need is embedded below in full.
-
-**What this folder contains (start):**
-
-```
-part3/3.6/
-├── todo-app/      (src/ + Cargo.toml — provided)
-├── todo-backend/  (src/ + Cargo.toml — provided)
-├── todo-cron/     (generate-todo.sh — provided)
-└── README.md      (this file)
-```
-
 ---
 
-## Knowledge — read this FIRST (no prior reading assumed)
+## Knowledge
 
 ### 1. What the pipeline does (the whole picture)
 
@@ -77,7 +47,7 @@ part3/3.6/
 The classic way: create a service account **JSON key**, store it as a
 GitHub secret. Works, but a stolen key = full access, and it never expires.
 
-The modern way (this lab): **Workload Identity Federation**. GitHub proves
+The modern way: **Workload Identity Federation**. GitHub proves
 who it is with a **short-lived signed token** (no stored secrets), and
 Google exchanges it for a service-account token. Five pieces:
 
@@ -101,7 +71,7 @@ europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:main-c00adaef
 
 - `europe-north1-docker.pkg.dev` — the Artifact Registry endpoint (region).
 - `dwk-gke-506208` — project id.
-- `my-repository` — the Docker repo you create in Artifact Registry.
+- `my-repository` — the Docker repo we create in Artifact Registry.
 - `todo-app` — the image name.
 - `main-c00adaefda1f7169` — branch + commit → **unique per push** →
   Kubernetes always sees a *new* image → `imagePullPolicy: Always`
@@ -132,15 +102,6 @@ The project lives in namespace `project`. Kubernetes does not auto-create
 it, and the pipeline doesn't either — **you create it once** (Step 1). The
 manifests pin `namespace: project`.
 
-### 7. What stays the same as 3.5 (verify you remember)
-
-- Storage class `standard` for the PVCs (GKE, not `local-path`).
-- postgres-initdb workaround: volume mounted at `/var/lib/postgresql`,
-  env `PGDATA=/var/lib/postgresql/data` (so initdb never sees `lost+found`).
-- CronJob with **no** volumes block (GKE rejects nameless `emptyDir`).
-- No Traefik: ClusterIP services; verify with port-forward.
-- Clean up after: cluster, images, **and leftover `pvc-*` disks**.
-
 ---
 
 ## Step 1 — GCP: cluster + namespace + Artifact Registry repo
@@ -149,18 +110,18 @@ manifests pin `namespace: project`.
 
 ```bash
 gcloud container clusters create dwk-cluster \
-  --zone=europe-north1-b --cluster-version=1.36 \
+  --zone=europe-north1-c --cluster-version=1.36 \
   --disk-size=32 --num-nodes=4 --machine-type=e2-small \
-  --enable-ip-alias --enable-private-nodes --master-ipv4-cidr=172.16.0.0/28 \
+  --enable-ip-alias --enable-private-nodes --master-ipv4-cidr=172.16.10.0/28 \
   --project=dwk-gke-506208
 ```
 
 Wait for `RUNNING`, then:
 
 ```bash
-gcloud container clusters update dwk-cluster --zone=europe-north1-b \
+gcloud container clusters update dwk-cluster --zone=europe-north1-c \
   --project=dwk-gke-506208 --no-enable-master-authorized-networks
-gcloud container clusters get-credentials dwk-cluster --zone=europe-north1-b --project=dwk-gke-506208
+gcloud container clusters get-credentials dwk-cluster --zone=europe-north1-c --project=dwk-gke-506208
 kubectl create namespace project
 ```
 
@@ -671,7 +632,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}
   GKE_CLUSTER: dwk-cluster
-  GKE_ZONE: europe-north1-b
+  GKE_ZONE: europe-north1-c
   REGISTRY: europe-north1-docker.pkg.dev
   REPOSITORY: my-repository
   BRANCH: ${{ github.ref_name }}
@@ -810,7 +771,7 @@ curl -s -o /dev/null -w "POST ok -> %{http_code}\n" -X POST http://localhost:808
 ## Step 9 — clean up (credits!)
 
 ```bash
-gcloud container clusters delete dwk-cluster --zone=europe-north1-b --project=dwk-gke-506208
+gcloud container clusters delete dwk-cluster --zone=europe-north1-c --project=dwk-gke-506208
 
 # images live in Artifact Registry now (not gcr) — delete the whole repo:
 gcloud artifacts repositories delete my-repository \
@@ -821,7 +782,7 @@ gcloud container images delete gcr.io/dwk-gke-506208/postgres:16 --quiet --force
 
 # leftover PVC disks (they SURVIVE cluster deletion):
 gcloud compute disks list --project=dwk-gke-506208     # any pvc-* → delete:
-gcloud compute disks delete pvc-... --project=dwk-gke-506208 --zone=europe-north1-b
+gcloud compute disks delete pvc-... --project=dwk-gke-506208 --zone=europe-north1-c
 
 # the OIDC chain (no longer needed after the lab):
 gcloud iam workload-identity-pools delete github-pool --location=global --project=dwk-gke-506208
@@ -852,6 +813,8 @@ gcloud compute disks list --project=dwk-gke-506208
 | `gh secret set` stored the literal word | piped the NAME, not the VALUE | give the value via stdin/`--body` |
 | IAM_PERMISSION_DENIED deleting AR repo | repo has images | add `--async` (or delete the images first) |
 | `gcloud compute disks delete`: disk in use | PVC disk still attached to node | wait for cluster deletion first |
+| `gcloud container clusters create`: operation RUNNING forever, 0 instances created, zone has no capacity | **GCE_STOCKOUT** — zone ran out of e2-small capacity | zone has too little capacity (regional stockout). **Probe another zone** first (`gcloud compute instances create probe-x --zone=europe-north1-c --machine-type=e2-small --no-address --project=dwk-gke-506208`), then create there. Any new cluster needs its own master CIDR (`172.16.10.0/28` this one) — the old cluster's `172.16.0.0/28` is still registered in the region until the stuck operation finishes. |
+| `gcloud container clusters delete`: "Cluster is running incompatible operation" | GKE CREATE operation stuck retrying stockout — **cannot be cancelled** (`Operation type CREATE_CLUSTER cannot be cancelled`) | wait it out (GKE gives up after a while, op becomes DONE+cluster ERROR), then `gcloud container clusters delete`. Never stack a second CREATE on the same name in another zone — it'll error `Already exists` |
 
 ## P/S:
 
