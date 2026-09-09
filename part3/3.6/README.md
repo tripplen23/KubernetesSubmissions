@@ -152,9 +152,9 @@ docker push gcr.io/dwk-gke-506208/postgres:16
 
 ## Step 2 — GCP IAM: the OIDC chain of trust (5 commands)
 
-Replace placeholders: `PROJECT_ID=dwk-gke-506208`,
+Replace placeholders, for example: `PROJECT_ID=dwk-gke-506208`,
 `PROJECT_NUMBER=323959491379` (run `gcloud projects list` to confirm),
-`YOUR_ORG/YOUR_REPO=tripplen23/KubernetesSubmissions` (your GitHub repo).
+`YOUR_ORG/YOUR_REPO=tripplen23/KubernetesSubmissions` (my GitHub repo).
 
 **1. Service account + permissions** (the identity the pipeline acts as):
 
@@ -815,6 +815,7 @@ gcloud compute disks list --project=dwk-gke-506208
 | `gcloud compute disks delete`: disk in use | PVC disk still attached to node | wait for cluster deletion first |
 | `gcloud container clusters create`: operation RUNNING forever, 0 instances created, zone has no capacity | **GCE_STOCKOUT** — zone ran out of e2-small capacity | zone has too little capacity (regional stockout). **Probe another zone** first (`gcloud compute instances create probe-x --zone=europe-north1-c --machine-type=e2-small --no-address --project=dwk-gke-506208`), then create there. Any new cluster needs its own master CIDR (`172.16.10.0/28` this one) — the old cluster's `172.16.0.0/28` is still registered in the region until the stuck operation finishes. |
 | `gcloud container clusters delete`: "Cluster is running incompatible operation" | GKE CREATE operation stuck retrying stockout — **cannot be cancelled** (`Operation type CREATE_CLUSTER cannot be cancelled`) | wait it out (GKE gives up after a while, op becomes DONE+cluster ERROR), then `gcloud container clusters delete`. Never stack a second CREATE on the same name in another zone — it'll error `Already exists` |
+| `workload-identity-pools create`: ALREADY_EXISTS / `providers create-oidc`: NOT_FOUND, while nothing is listed | the pool was **soft-deleted** (shows `DELETED` + expireTime, name reserved ~30 days); provider create can't find a deleted pool | resurrect it: `gcloud iam workload-identity-pools undelete github-pool --location=global --project=dwk-gke-506208` (restores the pool AND its provider with config intact) — verified 2026-09-08 |
 
 ## P/S:
 
