@@ -239,6 +239,12 @@ gh secret set WORKLOAD_IDENTITY_PROVIDER --repo tripplen23/KubernetesSubmissions
 > NOT take the name; if you `echo "GKE_PROJECT" | gh secret set
 > GKE_PROJECT`, you store the literal placeholder (we hit this during
 > testing — auth failed with "Invalid value for audience").
+>
+> ⚠️ **`GKE_PROJECT` must be the project ID** `dwk-gke-506208` — a wrong
+> value here makes `get-gke-credentials` fail with `permission denied on
+> resource project ***` (seen in 2026-09-09 testing). Auth still works
+> (auth@v3 doesn't read `GKE_PROJECT`), so a green auth step does NOT prove
+> this secret is correct.
 
 ![alt text](./assets/image2.png)
 
@@ -360,15 +366,19 @@ GitHub now runs `Release application` (watch the **Actions** tab):
 ```bash
 gh run list --limit 3
 gh run watch            # live
-gh run view <ID> --log-failed   # when it fails (see errors table)
+gh run view <ID> --log-failed   # when it fails, the tail shows the failing step
 ```
+
+![alt text](./assets/image3.png)
 
 A green `✓` means the whole chain worked: auth → build → push → deploy →
 rollout.
 
+![alt text](./assets/image4.png)
+
 ---
 
-## Step 8 — verify the deployment (proves the pipeline deployed it)
+## Step 6 — verify the deployment (proves the pipeline deployed it)
 
 ```bash
 kubectl rollout status deploy/todo-app -n project          # "successfully rolled out"
@@ -380,6 +390,11 @@ kubectl get deploy todo-app -n project \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
 # → europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:main-<sha>
 ```
+
+![alt text](./assets/image6.png)
+
+Take a look now in Google Cloud Artifact Registry
+![alt text](./assets/image5.png)
 
 And the app still works (deployed by the pipeline — no human touch):
 
@@ -393,7 +408,7 @@ curl -s -o /dev/null -w "POST ok -> %{http_code}\n" -X POST http://localhost:808
 
 ---
 
-## Step 9 — clean up (credits!)
+## Step 7 — clean up (credits!)
 
 ```bash
 gcloud container clusters delete dwk-cluster --zone=europe-north1-c --project=dwk-gke-506208
@@ -408,11 +423,6 @@ gcloud container images delete gcr.io/dwk-gke-506208/postgres:16 --quiet --force
 # leftover PVC disks (they SURVIVE cluster deletion):
 gcloud compute disks list --project=dwk-gke-506208     # any pvc-* → delete:
 gcloud compute disks delete pvc-... --project=dwk-gke-506208 --zone=europe-north1-c
-
-# the OIDC chain (no longer needed after the lab):
-gcloud iam workload-identity-pools delete github-pool --location=global --project=dwk-gke-506208
-gcloud iam service-accounts delete github-actions-sa@dwk-gke-506208.iam.gserviceaccount.com --quiet --project=dwk-gke-506208
-gh secret delete GKE_PROJECT SERVICE_ACCOUNT WORKLOAD_IDENTITY_PROVIDER --repo tripplen23/KubernetesSubmissions
 ```
 
 Final check — clusters / instances / forwarding-rules / addresses / disks
@@ -422,25 +432,6 @@ all = 0:
 gcloud container clusters list --project=dwk-gke-506208
 gcloud compute disks list --project=dwk-gke-506208
 ```
-
----
-
-## Common errors / gotchas (all hit during this lab's testing!)
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| auth@v3: "did not inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | missing OIDC permission on the job | add `permissions: id-token: write, contents: read` on the job |
-| auth@v3: "Invalid value for audience" | wrong `WORKLOAD_IDENTITY_PROVIDER` secret (e.g. literal placeholder) | set it to `projects/<N>/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
-| `gcloud iam service-accounts add-iam-policy-binding`: IAM_PERMISSION_DENIED | you lack service-account policy permission | grant yourself `roles/iam.serviceAccountAdmin` then retry |
-| rollout hangs / new pod Pending after deploy | RWO PVC + RollingUpdate (todo-app) | `strategy: type: Recreate` on the deployment |
-| kustomize: `cannot unmarshal number into Image.images.newTag` | unquoted `newTag: 3.6` parsed as float | `newTag: "3.6"` |
-| run failed in ~11s | early step (checkout/auth/gcloud) error | `gh run view --log-failed` |
-| `gh secret set` stored the literal word | piped the NAME, not the VALUE | give the value via stdin/`--body` |
-| IAM_PERMISSION_DENIED deleting AR repo | repo has images | add `--async` (or delete the images first) |
-| `gcloud compute disks delete`: disk in use | PVC disk still attached to node | wait for cluster deletion first |
-| `gcloud container clusters create`: operation RUNNING forever, 0 instances created, zone has no capacity | **GCE_STOCKOUT** — zone ran out of e2-small capacity | zone has too little capacity (regional stockout). **Probe another zone** first (`gcloud compute instances create probe-x --zone=europe-north1-c --machine-type=e2-small --no-address --project=dwk-gke-506208`), then create there. Any new cluster needs its own master CIDR (`172.16.10.0/28` this one) — the old cluster's `172.16.0.0/28` is still registered in the region until the stuck operation finishes. |
-| `gcloud container clusters delete`: "Cluster is running incompatible operation" | GKE CREATE operation stuck retrying stockout — **cannot be cancelled** (`Operation type CREATE_CLUSTER cannot be cancelled`) | wait it out (GKE gives up after a while, op becomes DONE+cluster ERROR), then `gcloud container clusters delete`. Never stack a second CREATE on the same name in another zone — it'll error `Already exists` |
-| `workload-identity-pools create`: ALREADY_EXISTS / `providers create-oidc`: NOT_FOUND, while nothing is listed | the pool was **soft-deleted** (shows `DELETED` + expireTime, name reserved ~30 days); provider create can't find a deleted pool | resurrect it: `gcloud iam workload-identity-pools undelete github-pool --location=global --project=dwk-gke-506208` (restores the pool AND its provider with config intact) — verified 2026-09-08 |
 
 ## P/S:
 
