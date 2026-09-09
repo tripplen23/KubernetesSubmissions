@@ -1,0 +1,54 @@
+name: Delete environment
+
+on:
+  delete
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: europe-north1-c
+
+jobs:
+  delete-environment:
+    name: Delete namespace for deleted branch
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # NOTE: no checkout — on `delete` the ref no longer exists.
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: '${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.SERVICE_ACCOUNT }}'
+
+      - name: 'Set up Cloud SDK'
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: 'Get GKE credentials'
+        uses: 'google-github-actions/get-gke-credentials@v3'
+        with:
+          cluster_name: '${{ env.GKE_CLUSTER }}'
+          project_id: '${{ env.PROJECT_ID }}'
+          location: '${{ env.GKE_ZONE }}'
+
+      - name: 'Delete branch environment'
+        run: |
+          # on: delete fires for tags too — only react to branch deletions
+          if [ "$GITHUB_REF_TYPE" != "branch" ]; then
+            echo "deleted ref is a $GITHUB_REF_TYPE — nothing to do"
+            exit 0
+          fi
+
+          NAMESPACE="$GITHUB_REF_NAME"
+          echo "deleted branch → deleting namespace $NAMESPACE"
+
+          # never touch the project environment by accident
+          if [ "$NAMESPACE" = "main" ]; then
+            echo "main deleted? refusing to delete project"
+            exit 0
+          fi
+
+          kubectl delete namespace "$NAMESPACE" --ignore-not-found
