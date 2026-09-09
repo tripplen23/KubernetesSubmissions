@@ -70,12 +70,20 @@ jobs:
 
       - name: 'Deploy with Kustomize'
         run: |
+          # keep main on project; every other branch gets a namespace of its own
+          NAMESPACE="project"
+          if [ "$BRANCH" != "main" ]; then
+            NAMESPACE="$BRANCH"
+          fi
+          kubectl create namespace "$NAMESPACE" || true
+          kubectl config set-context --current --namespace="$NAMESPACE"
           cd part3/3.6/manifests
+          kustomize edit set namespace "$NAMESPACE"
           kustomize edit set image TODO_APP=$IMAGE_TAG_APP
           kustomize edit set image TODO_BACKEND=$IMAGE_TAG_BACKEND
           kustomize edit set image TODO_CRON=$IMAGE_TAG_CRON
           kustomize build . | kubectl apply -f -
-          kubectl rollout status deployment todo-app -n project
-          kubectl rollout status deployment todo-backend -n project
-          kubectl rollout status statefulset postgres-ss -n project
-          kubectl get pods -n project -o wide
+          kubectl rollout status deployment todo-app
+          kubectl rollout status deployment todo-backend
+          kubectl rollout status statefulset postgres-ss
+          kubectl get pods -o wide
