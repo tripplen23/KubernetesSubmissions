@@ -247,16 +247,3 @@ gcloud compute disks list --project=dwk-gke-506208   # any pvc-* → delete them
 > KEEP the WIF chain (workload identity pool `github-pool`, SA
 > `github-actions-sa`, the 3 GitHub secrets) — **3.8 reuses every bit of
 > it.** Only clean it after 3.8.
-
----
-
-## Common errors (quick table)
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| deploy fails at `kustomize edit set namespace` | ran outside the `manifests` dir | the `cd part3/3.6/manifests` must run before all `kustomize edit ...` |
-| `The Namespace "feat-3.7" is invalid: ... must not contain dots` | branch name contains a **dot** — Kubernetes namespace names can't have dots (hit with `feat-3.7`!) | rename the branch to a dot-free name: `git branch -m feat-3.7 feat37` then push; the namespace (and verify commands) then use `feat37` |
-| everything lands in the `default` namespace | namespace override missing → kustomize kept the manifests' hardcoded `project` or empty | ensure `kustomize edit set namespace "$NAMESPACE"` is in the step (verified: field overrides the manifests) |
-| postgres pod ImagePullBackOff in a branch env | `gcr.io/.../postgres:16` was deleted in cleanup | re-run the `docker tag/push` from Step 1 |
-| `AlreadyExists` namespace | branch created twice / is `main` | `\|\| true` after `kubectl create` (already in the script) |
-| a push to `main` deploys the same as `project` | expected | that's the requirement: main → `project` |
