@@ -24,7 +24,7 @@ feature deleted                     main (untouched)
 - **Delete workflows run from the default branch** (`main`): the
   workflow file must be **on `main`**, not on the branch being deleted.
 - In the run, `github.ref_name` / `GITHUB_REF_NAME` is the **short name**
-  of the deleted ref (e.g. `feat-3.7`), and `GITHUB_REF_TYPE` tells you
+  of the deleted ref (e.g. `feat37`), and `GITHUB_REF_TYPE` tells you
   whether it was a `branch` or a `tag` — tag deletions must be ignored.
 - **Do NOT use `actions/checkout` in this workflow.** On a `delete`
   event the deleted ref no longer exists, so checkout of that ref fails.
@@ -118,27 +118,27 @@ Requires the 3.7-patched pipeline and the cluster from 3.7 running.
 
 ```bash
 # 1) create + push a test branch — 3.7 pipeline builds its namespace
-git checkout -b feat-3.8test
+git checkout -b feat38test
 echo "" >> part3/3.6/todo-app/src/main.rs
-git add -A && git commit -m "test: branch env for 3.8" && git push -u origin feat-3.8test
+git add -A && git commit -m "test: branch env for 3.8" && git push -u origin feat38test
 
 # 2) wait for that run to deploy, then spot-check
-gh run list --branch feat-3.8test --limit 1
-kubectl get pods -n feat-3.8test -o wide    # Running: todo-app, todo-backend, postgres-ss-0
+gh run list --branch feat38test --limit 1
+kubectl get pods -n feat38test -o wide    # Running: todo-app, todo-backend, postgres-ss-0
 
 # 3) delete the branch — both the remote branch AND its environment should die
 #    (delete fires the new workflow)
-git push origin --delete feat-3.8test
+git push origin --delete feat38test
 
 # 4) find the cleanup run (separate workflow, separate name) and verify
 gh run list --workflow 'Delete environment' --limit 1
 gh run watch
 
 # 5) namespace must be GONE (workloads + its PVCs are deleted with it)
-kubectl get ns feat-3.8test          # Error from server (NotFound)
+kubectl get ns feat38test          # Error from server (NotFound)
 ```
 
-After cleanup, `git branch -d feat-3.8test` locally too.
+After cleanup, `git branch -d feat38test` locally too.
 
 ---
 
@@ -177,6 +177,7 @@ gh secret delete GKE_PROJECT SERVICE_ACCOUNT WORKLOAD_IDENTITY_PROVIDER --repo t
 | Symptom | Cause | Fix |
 |---|---|---|
 | workflow doesn't run after `git push --delete` | workflow file not yet on `main` (only on the deleted branch) | merge/push the file to `main` first — `delete` workflows start from default branch |
+| test branch env never appears (`kubectl get ns` empty) | branch name had a dot (e.g. `feat-3.7`) — Kubernetes namespace names can't contain dots | use a dot-free branch name, e.g. `feat37` / `feat38test` (hit with `feat-3.7` during 3.7 testing) |
 | checkout fails with "unable to find remote ref" | deleted branch can't be checked out | remove the `checkout` step (cleanup needs no source) |
 | namespace deleted when a TAG was deleted | forgot the ref_type guard | the `$GITHUB_REF_TYPE != "branch"` check keeps tags de out |
 | `kubectl delete namespace` fails | namespace already gone | `--ignore-not-found` (already in the script) |

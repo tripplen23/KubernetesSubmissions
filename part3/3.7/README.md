@@ -18,7 +18,7 @@ namespace <branch>       namespace project
 ```
 
 The course assumes branch names are valid namespace names (lowercase,
-no dots/slashes — e.g. `feat-3.7`).
+no dots/slashes — e.g. `feat37`).
 
 ## Knowledge — the three namespace commands
 
@@ -184,19 +184,21 @@ jobs:
 ## Step 3 — Kick it: push a test branch
 
 ```bash
-git checkout -b feat-3.7
+git checkout -b feat37
 # touch nothing? make a trivial diff so the branch is pushed:
 echo "" >> part3/3.6/todo-app/src/main.rs    # or any real change
-git add -A && git commit -m "test: branch env for 3.7" && git push -u origin feat-3.7
+git add -A && git commit -m "test: branch env for 3.7" && git push -u origin feat37
 ```
 
 The `on: push` trigger fires for the new branch → the pipeline now runs
 twice per push (main's run + branch's run). Watch the **branch** run:
 
 ```bash
-gh run list --branch feat-3.7 --limit 1
+gh run list --branch feat37 --limit 1
 gh run watch
 ```
+
+![alt text](./assets/image.png)
 
 ---
 
@@ -204,19 +206,19 @@ gh run watch
 
 ```bash
 # the new per-branch environment is up:
-kubectl get pods -n feat-3.7 -o wide
+kubectl get pods -n feat37 -o wide
 #   todo-app-*, todo-backend-*, postgres-ss-0  → all Running
 
 # main's environment untouched:
 kubectl get pods -n project -o wide
 
 # the branch's image comes from THIS branch's build (tag = branch-sha):
-kubectl get deploy todo-app -n feat-3.7 \
+kubectl get deploy todo-app -n feat37 \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
-# → europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:feat-3.7-<sha>
+# → europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:feat37-<sha>
 
 # and it actually serves:
-kubectl port-forward -n feat-3.7 svc/todo-app-svc 8082:3000 &
+kubectl port-forward -n feat37 svc/todo-app-svc 8082:3000 &
 curl -s -o /dev/null -w "GET / -> %{http_code}\n" http://localhost:8082/    # 200
 ```
 
@@ -232,8 +234,8 @@ environments are isolated from each other.
 then you delete the test environment by hand:
 
 ```bash
-git push origin --delete feat-3.7   # removes the branch (and its runs)
-kubectl delete namespace feat-3.7    # removes the test environment
+git push origin --delete feat37   # removes the branch (and its runs)
+kubectl delete namespace feat37    # removes the test environment
 
 # when fully done with 3.7:
 gcloud container clusters delete dwk-cluster --zone=europe-north1-c --project=dwk-gke-506208
@@ -253,6 +255,7 @@ gcloud compute disks list --project=dwk-gke-506208   # any pvc-* → delete them
 | Symptom | Cause | Fix |
 |---|---|---|
 | deploy fails at `kustomize edit set namespace` | ran outside the `manifests` dir | the `cd part3/3.6/manifests` must run before all `kustomize edit ...` |
+| `The Namespace "feat-3.7" is invalid: ... must not contain dots` | branch name contains a **dot** — Kubernetes namespace names can't have dots (hit with `feat-3.7`!) | rename the branch to a dot-free name: `git branch -m feat-3.7 feat37` then push; the namespace (and verify commands) then use `feat37` |
 | everything lands in the `default` namespace | namespace override missing → kustomize kept the manifests' hardcoded `project` or empty | ensure `kustomize edit set namespace "$NAMESPACE"` is in the step (verified: field overrides the manifests) |
 | postgres pod ImagePullBackOff in a branch env | `gcr.io/.../postgres:16` was deleted in cleanup | re-run the `docker tag/push` from Step 1 |
 | `AlreadyExists` namespace | branch created twice / is `main` | `\|\| true` after `kubectl create` (already in the script) |
