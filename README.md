@@ -51,6 +51,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part3/3.7/`](./part3/3.7) | 3.7 — The project, step 16: separate environment for each branch | pipeline deploys each git branch to a namespace named after the branch (`main` keeps `project`) | `europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/{todo-app,todo-backend,todo-cron}:feat37-<sha>` | [tag `3.7`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.7/part3/3.7) |
 | [`part3/3.8/`](./part3/3.8) | 3.8 — The project, step 17: deleting a branch deletes the environment | new workflow `delete-environment.yaml` (`on: delete` → `kubectl delete namespace`, branch-only guard) | — | [tag `3.8`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.8/part3/3.8) |
 | [`part3/3.9/`](./part3/3.9) | 3.9 — DBaaS vs DIY (GKE features) | pros/cons comparison: managed Cloud SQL vs own Postgres + PVC (init work/cost, maintenance, backups) | — (writing exercise) | [tag `3.9`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.9/part3/3.9) |
+| [`part3/3.10/`](./part3/3.10) | 3.10 — The project, step 18: scheduled backup to Google Object Storage | CronJob (dump + upload, two containers) backs up the todo DB every 24 h to a GCS bucket; the upload authenticates with Workload Identity (no key — the org blocks SA keys) | `gcr.io/dwk-gke-506208/postgres:16`, `gcr.io/google.com/cloudsdktool/cloud-sdk:latest` | [tag `3.10`](https://github.com/tripplen23/KubernetesSubmissions/tree/3.10/part3/3.10) |
 
 ## Prerequisites
 

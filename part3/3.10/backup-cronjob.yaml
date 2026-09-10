@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-backup
+  namespace: project
+spec:
+  schedule: "15 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: backup-sa        # ← WIF: the pod's own identity
+          volumes:
+            - name: scratch
+              emptyDir: {}
+          containers:
+            - name: dump
+              image: gcr.io/dwk-gke-506208/postgres:16
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_PASSWORD
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  pg_dump -h postgres-svc -U postgres -d postgres \
+                    --file=/scratch/todo.sql
+                  touch /scratch/done
+              volumeMounts:
+                - name: scratch
+                  mountPath: /scratch
+            - name: upload
+              image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: BUCKET
+                  value: "gs://dwk-todo-backups-tripplen23"
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  until [ -f /scratch/done ]; do sleep 1; done
+                  STAMP=$(date -u +%Y-%m-%d-%H%M%S)
+                  gsutil cp /scratch/todo.sql "$BUCKET/todo-${STAMP}.sql"
+                  echo "uploaded todo-${STAMP}.sql"
+              volumeMounts:
+                - name: scratch
+                  mountPath: /scratch
