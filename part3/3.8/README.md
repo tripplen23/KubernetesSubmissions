@@ -169,16 +169,3 @@ gcloud iam workload-identity-pools delete github-pool --location=global --projec
 gcloud iam service-accounts delete github-actions-sa@dwk-gke-506208.iam.gserviceaccount.com --quiet --project=dwk-gke-506208
 gh secret delete GKE_PROJECT SERVICE_ACCOUNT WORKLOAD_IDENTITY_PROVIDER --repo tripplen23/KubernetesSubmissions
 ```
-
----
-
-## Common errors (from real-world runs)
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| workflow doesn't run after `git push --delete` | workflow file not yet on `main` (only on the deleted branch) | merge/push the file to `main` first — `delete` workflows start from default branch |
-| test branch env never appears (`kubectl get ns` empty) | branch name had a dot (e.g. `feat-3.7`) — Kubernetes namespace names can't contain dots | use a dot-free branch name, e.g. `feat37` / `feat38test` (hit with `feat-3.7` during 3.7 testing) |
-| checkout fails with "unable to find remote ref" | deleted branch can't be checked out | remove the `checkout` step (cleanup needs no source) |
-| namespace deleted when a TAG was deleted | forgot the ref_type guard | the `$GITHUB_REF_TYPE != "branch"` check keeps tags de out |
-| `kubectl delete namespace` fails | namespace already gone | `--ignore-not-found` (already in the script) |
-| pods come back after deletion | branch deleted, but another open PR/push re-runs `main.yaml` for it | expected — delete + re-push recreates; the cleanup only fires at actual deletion |
