@@ -219,6 +219,8 @@ gsutil ls -l gs://dwk-todo-backups-tripplen23/
 
 ![alt text](./assets/image.png)
 
+![alt text](./assets/image1.png)
+
 ---
 
 ## Step 4 — Clean up
