@@ -7,6 +7,11 @@ env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}
   GKE_CLUSTER: dwk-cluster
   GKE_ZONE: europe-north1-c
+  # NOTE: on a `delete` event GITHUB_REF/GITHUB_REF_NAME point at the DEFAULT
+  # branch (main), NOT at the ref that was deleted. The deleted ref is only in
+  # the event payload.
+  DELETED_REF: ${{ github.event.ref }}
+  DELETED_REF_TYPE: ${{ github.event.ref_type }}
 
 jobs:
   delete-environment:
@@ -37,12 +42,12 @@ jobs:
       - name: 'Delete branch environment'
         run: |
           # on: delete fires for tags too — only react to branch deletions
-          if [ "$GITHUB_REF_TYPE" != "branch" ]; then
-            echo "deleted ref is a $GITHUB_REF_TYPE — nothing to do"
+          if [ "$DELETED_REF_TYPE" != "branch" ]; then
+            echo "deleted ref is a $DELETED_REF_TYPE — nothing to do"
             exit 0
           fi
 
-          NAMESPACE="$GITHUB_REF_NAME"
+          NAMESPACE="$DELETED_REF"
           echo "deleted branch → deleting namespace $NAMESPACE"
 
           # never touch the project environment by accident

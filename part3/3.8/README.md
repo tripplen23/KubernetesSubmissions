@@ -23,9 +23,17 @@ feature deleted                     main (untouched)
   --delete <branch>`.
 - **Delete workflows run from the default branch** (`main`): the
   workflow file must be **on `main`**, not on the branch being deleted.
-- In the run, `github.ref_name` / `GITHUB_REF_NAME` is the **short name**
-  of the deleted ref (e.g. `feat37`), and `GITHUB_REF_TYPE` tells you
-  whether it was a `branch` or a `tag` — tag deletions must be ignored.
+- ⚠️ **The trap of this exercise: the `REF` variables lie.** On a `delete`
+  event the standard `GITHUB_REF` / `GITHUB_REF_NAME` / `GITHUB_REF_TYPE`
+  variables describe the **default branch (`main`)** — not the ref that was
+  deleted. The deleted ref lives only in the event payload: `github.event.ref`
+  (e.g. `feat37`) and `github.event.ref_type` (`branch` or `tag`) — pass them
+  into the job through an `env:` block. If you reach for `GITHUB_REF_NAME`
+  instead, the workflow computes `NAMESPACE=main`, hits the
+  *"refusing to delete project"* guard and exits `0`: a **green run that
+  deletes nothing** (that is exactly what happened here on 2026-09-10 —
+  deleting branch `feat37` left namespace `feat37` alive while the run said
+  *success*).
 - **Do NOT use `actions/checkout` in this workflow.** On a `delete`
   event the deleted ref no longer exists, so checkout of that ref fails.
   Cleanup needs no source code — auth + credentials + `kubectl` are
@@ -53,6 +61,10 @@ env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}
   GKE_CLUSTER: dwk-cluster
   GKE_ZONE: europe-north1-c
+  # on a `delete` event the GITHUB_REF* variables point at the DEFAULT branch
+  # (main); the deleted ref is only in the event payload:
+  DELETED_REF: ${{ github.event.ref }}
+  DELETED_REF_TYPE: ${{ github.event.ref_type }}
 
 jobs:
   delete-environment:
@@ -83,12 +95,12 @@ jobs:
       - name: 'Delete branch environment'
         run: |
           # on: delete fires for tags too — only react to branch deletions
-          if [ "$GITHUB_REF_TYPE" != "branch" ]; then
-            echo "deleted ref is a $GITHUB_REF_TYPE — nothing to do"
+          if [ "$DELETED_REF_TYPE" != "branch" ]; then
+            echo "deleted ref is a $DELETED_REF_TYPE — nothing to do"
             exit 0
           fi
 
-          NAMESPACE="$GITHUB_REF_NAME"
+          NAMESPACE="$DELETED_REF"
           echo "deleted branch → deleting namespace $NAMESPACE"
 
           # never touch the project environment by accident
@@ -105,8 +117,8 @@ jobs:
 | Line | Why |
 |---|---|
 | `on: delete` | any ref (branch/tag) deleted anywhere |
-| `$GITHUB_REF_TYPE != "branch"` | skip tag deletions |
-| `NAMESPACE="$GITHUB_REF_NAME"` | deleted branch name == its namespace (3.7 naming) |
+| `DELETED_REF_TYPE != "branch"` | skip tag deletions (`github.event.ref_type`) |
+| `NAMESPACE="$DELETED_REF"` | deleted branch name == its namespace (3.7 naming); `github.event.ref` — **not** `GITHUB_REF_NAME` |
 | `"main"` guard | hard safety rail protecting namespace `project` |
 | `--ignore-not-found` | branch deleted twice / namespace already gone → still green |
 
