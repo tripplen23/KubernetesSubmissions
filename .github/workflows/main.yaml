@@ -1,7 +1,11 @@
 name: Release application
 
 on:
+  # branches only: a tag push would set BRANCH to e.g. "3.10", and a
+  # namespace name cannot contain dots ("The Namespace \"3.10\" is invalid").
   push:
+    branches:
+      - '**'
 
 env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}

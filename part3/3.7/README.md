@@ -82,7 +82,11 @@ stays identical. Replace the file, then diff mentally against yours.
 name: Release application
 
 on:
+  # branches only: a tag push would set BRANCH to e.g. "3.10", and a
+  # namespace name cannot contain dots ("The Namespace \"3.10\" is invalid").
   push:
+    branches:
+      - '**'
 
 env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}
@@ -178,6 +182,15 @@ jobs:
 | no namespace creation | `kubectl create namespace "$NAMESPACE" \|\| true` |
 | (nothing) | `kubectl config set-context --current --namespace` — targets rest of the step |
 | (nothing) | `kustomize edit set namespace "$NAMESPACE"` — rewrites all manifests |
+
+> ⚠️ **Tag pushes must not deploy.** `on: push` also fires for git tags;
+> then `BRANCH` is the tag name and `kubectl create namespace "3.10"` dies
+> with *`The Namespace "3.10" is invalid: metadata.name: Invalid value:
+> "3.10": must not contain dots`* — the deploy step then fails on every
+> `Namespace "3.10" not found`. Restricting the trigger with
+> `push: branches: ['**']` (see the workflow above) keeps
+> `git push origin <tag>` from starting a deploy at all. That is why the
+> tag-push runs show up as red in the Actions tab while `main` is green.
 
 ---
 
