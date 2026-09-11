@@ -17,7 +17,7 @@ spec:
               env:
                 - name: TODO_BACKEND_URL
                   value: "http://todo-backend-svc:2345"
-              resources:
+              resources:                   # ← NEW
                 requests:
                   cpu: 50m
                   memory: 64Mi

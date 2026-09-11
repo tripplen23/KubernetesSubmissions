@@ -45,7 +45,7 @@ spec:
             # never sees the filesystem's lost+found
             - name: PGDATA
               value: /var/lib/postgresql/data
-          resources:
+          resources:                       # ← NEW
             requests:
               cpu: 100m
               memory: 256Mi
