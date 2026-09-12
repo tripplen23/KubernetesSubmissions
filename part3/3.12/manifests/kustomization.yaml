@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: project
+resources:
+  - secret.yaml
+  - configmap.yaml
+  - configmap-todo.yaml
+  - persistentvolumeclaim.yaml
+  - postgres.yaml
+  - deployment-todo-backend.yaml
+  - deployment-todo-app.yaml
+  - service.yaml
+  - cronjob.yaml
+images:
+  - name: TODO_APP
+    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app
+    newTag: "3.12"
+  - name: TODO_BACKEND
+    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-backend
+    newTag: "3.12"
+  - name: TODO_CRON
+    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-cron
+    newTag: "3.12"
