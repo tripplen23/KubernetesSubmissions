@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaky-dep
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: flaky
+  template:
+    metadata:
+      labels:
+        app: flaky
+    spec:
+      containers:
+        - name: flaky
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/flaky-app:4.1
+          env:
+            - name: FLAKY_VERSION
+              value: "v6"
+          ports:
+            - containerPort: 3541
+          readinessProbe:
+            initialDelaySeconds: 10   # wait this long after the container starts
+            periodSeconds: 5          # then check every 5 seconds
+            httpGet:
+              path: /healthz
+              port: 3541
+          livenessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            httpGet:
+              path: /healthz
+              port: 3541
+          startupProbe:
+            failureThreshold: 30
+            periodSeconds: 10
+            httpGet:
+              path: /healthz
+              port: 3541
+  strategy:
+    type: Recreate

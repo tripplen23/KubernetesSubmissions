@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logoutput-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logoutput
+  template:
+    metadata:
+      labels:
+        app: logoutput
+    spec:
+      volumes:
+        - name: shared-files
+          emptyDir: {}
+      containers:
+        - name: writer
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/log-output:4.1
+          env:
+            - name: ROLE
+              value: writer
+          volumeMounts:
+            - name: shared-files
+              mountPath: /usr/src/app/files
+        - name: server
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/log-output:4.1
+          ports:
+            - containerPort: 3541
+          env:
+            - name: ROLE
+              value: server
+            - name: PINGPONG_URL
+              value: http://pingpong-svc
+          volumeMounts:
+            - name: shared-files
+              mountPath: /usr/src/app/files
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3541
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logoutput-svc
+spec:
+  selector:
+    app: logoutput
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3541

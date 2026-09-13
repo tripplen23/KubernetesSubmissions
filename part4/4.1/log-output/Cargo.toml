@@ -1,0 +1,15 @@
+[package]
+name = "log-output"
+version = "0.1.0"
+edition = "2021"
+
+# No HTTP client crate on purpose: the server container only needs a single
+# "GET http://host:port/path" against the ping-pong Service. Pulling reqwest in
+# would drag url -> idna -> icu along, and those crates no longer build on the
+# Rust version this project pins (rust:1.85). ~40 lines of tokio in http.rs
+# instead of a hundred transitive dependencies.
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+chrono = "0.4"
+uuid = { version = "1", features = ["v4"] }
