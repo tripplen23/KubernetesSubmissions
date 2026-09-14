@@ -366,11 +366,6 @@ Measured on this setup:
 - `log-output` with ping-pong unreachable → `curl /healthz` = **500**
   (`connect ... failed: ...` in the log), while `GET /` still answers 200 with the
   file the writer container appended to the shared `emptyDir` volume.
-- All three applications are Rust (axum 0.8 + tokio) and were built with the
-  repository's `rust:1.85` image. `log-output` deliberately has **no HTTP-client
-  crate**: `reqwest` pulls in `url → idna → icu`, and those crates have stopped
-  building on Rust 1.85 (`requires rustc 1.88`). `src/http.rs` is ~40 lines of
-  tokio instead — one `GET`, with the timeout that the health check needs.
 - Registry reachability from the cluster: **docker.io works** (`rust:1.85`,
   `debian:bookworm-slim`, `postgres:16` all come from there), `quay.io` and the
   open internet time out. Everything this lab runs is built from its own folder
