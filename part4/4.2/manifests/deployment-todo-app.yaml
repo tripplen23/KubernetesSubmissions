@@ -23,11 +23,11 @@ spec:
             claimName: image-claim
       containers:
         - name: todo-app
-          image: TODO_APP
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:4.2
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          readinessProbe:
+          readinessProbe:                        # ← NEW
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
@@ -35,7 +35,7 @@ spec:
             httpGet:
               path: /healthz
               port: 3000
-          livenessProbe:
+          livenessProbe:                         # ← NEW
             initialDelaySeconds: 15
             periodSeconds: 5
             timeoutSeconds: 3

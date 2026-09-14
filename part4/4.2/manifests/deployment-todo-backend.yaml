@@ -17,11 +17,11 @@ spec:
     spec:
       containers:
         - name: todo-backend
-          image: TODO_BACKEND
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-backend:4.2
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          readinessProbe:
+          readinessProbe:                        # ← NEW
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
