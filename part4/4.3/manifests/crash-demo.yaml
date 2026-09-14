@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crash-demo
+  namespace: crash-demo
+  labels:
+    app: crash-demo
+spec:
+  restartPolicy: Always
+  containers:
+    - name: crash-demo
+      image: busybox:1.36
+      command: ["sh", "-c", "echo 'crash-demo starting'; sleep 20; echo 'crash-demo dying'; exit 1"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
