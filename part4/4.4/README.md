@@ -466,7 +466,7 @@ kubectl delete namespace monitoring
 kubectl get crd | grep monitoring.coreos.com    # left behind; delete them when the course is over
 ```
 
-Argo Rollouts can stay, or:
+Argo Rollouts can stay, or (delete it with the `install.yaml` you downloaded in Step 0):
 
 ```bash
 kubectl delete -n argo-rollouts -f install.yaml
