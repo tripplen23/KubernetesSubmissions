@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ping-pong
+  namespace: canary
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: ping-pong
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25
+        - pause:
+            duration: 30s
+        - analysis:
+            templates:
+              - templateName: namespace-cpu
+        - setWeight: 50
+        - pause:
+            duration: 30s
+  template:
+    metadata:
+      labels:
+        app: ping-pong
+    spec:
+      containers:
+        - name: ping-pong
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/ping-pong:4.4
+          env:
+            - name: PINGPONG_MODE
+              value: normal
+          ports:
+            - containerPort: 3541
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3541
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ping-pong-svc
+  namespace: canary
+spec:
+  selector:
+    app: ping-pong
+  ports:
+    - port: 80
+      targetPort: 3541

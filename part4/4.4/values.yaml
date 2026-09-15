@@ -1,0 +1,72 @@
+grafana:
+  enabled: false
+
+alertmanager:
+  enabled: false
+
+prometheusOperator:
+  image:
+    registry: europe-north1-docker.pkg.dev
+    repository: dwk-gke-506208/my-repository/prometheus-operator
+    tag: v0.94.0
+  prometheusConfigReloader:
+    image:
+      registry: europe-north1-docker.pkg.dev
+      repository: dwk-gke-506208/my-repository/prometheus-config-reloader
+      tag: v0.94.0
+  admissionWebhooks:
+    patch:
+      image:
+        registry: europe-north1-docker.pkg.dev
+        repository: dwk-gke-506208/my-repository/kube-webhook-certgen
+        tag: 1.8.8
+  resources:
+    requests:
+      cpu: 50m
+      memory: 80Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    image:
+      registry: europe-north1-docker.pkg.dev
+      repository: dwk-gke-506208/my-repository/prometheus
+      tag: v3.14.0-distroless
+    resources:
+      requests:
+        cpu: 100m
+        memory: 150Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+kube-state-metrics:
+  image:
+    registry: europe-north1-docker.pkg.dev
+    repository: dwk-gke-506208/my-repository/kube-state-metrics
+    tag: v2.20.0
+    distroless: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 50Mi
+    limits:
+      cpu: 100m
+      memory: 192Mi
+
+prometheus-node-exporter:
+  image:
+    registry: europe-north1-docker.pkg.dev
+    repository: dwk-gke-506208/my-repository/node-exporter
+    tag: v1.12.1
+    distroless: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 25Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

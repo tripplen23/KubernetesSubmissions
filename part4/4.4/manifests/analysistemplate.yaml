@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: namespace-cpu
+  namespace: canary
+spec:
+  metrics:
+    - name: namespace-cpu
+      initialDelay: 1m
+      interval: 30s
+      count: 8
+      successCondition: result < 0.3
+      provider:
+        prometheus:
+          address: http://prom-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            scalar(
+              sum(rate(container_cpu_usage_seconds_total{namespace="canary", container!=""}[1m]))
+            )
