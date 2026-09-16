@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-app
+  namespace: project
+  labels:
+    app: todo-app
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-app
+  template:
+    metadata:
+      labels:
+        app: todo-app
+    spec:
+      volumes:
+        - name: image-storage
+          persistentVolumeClaim:
+            claimName: image-claim
+      containers:
+        - name: todo-app
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:4.5
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3000
+          livenessProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            httpGet:
+              path: /livez
+              port: 3000
+          envFrom:
+            - configMapRef:
+                name: todo-config
+          env:
+            - name: PORT
+              value: "3000"
+            - name: VERSION
+              value: "v1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: image-storage
+              mountPath: /usr/src/app/files
