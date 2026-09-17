@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  nats-4.6.json: |-
+    {
+      "title": "NATS \u2014 4.6",
+      "uid": "nats-lab46",
+      "schemaVersion": 39,
+      "refresh": "10s",
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "NATS target up",
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "up{job=\"nats\"}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Connections",
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "sum(nats_varz_connections)",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Messages / second",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
+          "targets": [
+            {
+              "expr": "rate(nats_varz_in_msgs[5m])",
+              "refId": "A",
+              "legendFormat": "in"
+            },
+            {
+              "expr": "rate(nats_varz_out_msgs[5m])",
+              "refId": "B",
+              "legendFormat": "out"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Bytes / second",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
+          "targets": [
+            {
+              "expr": "rate(nats_varz_in_bytes[5m])",
+              "refId": "A",
+              "legendFormat": "in"
+            },
+            {
+              "expr": "rate(nats_varz_out_bytes[5m])",
+              "refId": "B",
+              "legendFormat": "out"
+            }
+          ]
+        }
+      ]
+    }

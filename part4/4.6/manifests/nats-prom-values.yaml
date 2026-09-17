@@ -1,0 +1,7 @@
+prometheus:
+  prometheusSpec:
+    additionalScrapeConfigs:
+      - job_name: nats
+        static_configs:
+          - targets:
+              - my-nats-0.my-nats-headless.project.svc.cluster.local:7777

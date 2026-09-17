@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster
+  namespace: project
+  labels:
+    app: broadcaster
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: broadcaster
+  template:
+    metadata:
+      labels:
+        app: broadcaster
+    spec:
+      containers:
+        - name: broadcaster
+          image: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/broadcaster:4.6
+          imagePullPolicy: Always
+          env:
+            - name: NATS_URL
+              value: "nats://my-nats:4222"
+            - name: NATS_SUBJECT
+              value: "todo_events"
+            - name: NATS_QUEUE_GROUP
+              value: "broadcasters"
+            - name: CHAT_URL
+              value: "http://chat-sink:8080"
+            - name: CHAT_FORMAT
+              value: "generic"   # or "discord" ({"content"}) / "slack" ({"text"})
+            - name: BOT_NAME
+              value: "bot"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

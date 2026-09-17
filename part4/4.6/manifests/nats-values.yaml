@@ -1,0 +1,19 @@
+container:
+  image:
+    repository: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/nats-server
+    tag: 2.14.6-alpine
+
+reloader:
+  image:
+    repository: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/nats-reloader
+    tag: 0.23.0
+
+natsBox:
+  enabled: false
+
+promExporter:
+  enabled: true
+  port: 7777
+  image:
+    repository: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/nats-exporter
+    tag: 0.20.1
