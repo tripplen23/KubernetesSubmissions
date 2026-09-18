@@ -1,0 +1,45 @@
+name: Build, publish and release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write          # the workflow commits kustomization.yaml back to the repo
+
+jobs:
+  build-publish-release:
+    name: Build, Push, Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Build and publish log-output
+        run: |
+          gcloud auth configure-docker europe-north1-docker.pkg.dev -q
+          R=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository
+          docker build -t "$R/log-output:$GITHUB_SHA" part4/4.7/log-output
+          docker push "$R/log-output:$GITHUB_SHA"
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+
+      - name: Point the overlay at the new image
+        run: |
+          cd part4/4.7/config/overlays/prod
+          kustomize edit set image \
+            PROJECT/IMAGE=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository/log-output:$GITHUB_SHA
+
+      - name: Commit the release
+        uses: EndBug/add-and-commit@v10
+        with:
+          add: part4/4.7/config/overlays/prod/kustomization.yaml
+          message: "Release ${{ github.sha }}"

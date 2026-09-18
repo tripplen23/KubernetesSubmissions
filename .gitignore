@@ -12,3 +12,7 @@ Thumbs.db
 
 # Local k8s / docker overrides
 *.local
+
+# Generated install manifests (downloaded in 4.4 and 4.7 — they belong in /tmp)
+install.yaml
+install-mirrored.yaml

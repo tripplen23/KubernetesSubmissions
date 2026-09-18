@@ -41,13 +41,13 @@ docker pull quay.io/argoproj/argo-rollouts:v1.10.0
 docker tag  quay.io/argoproj/argo-rollouts:v1.10.0 $R/argo-rollouts:v1.10.0
 docker push $R/argo-rollouts:v1.10.0
 
-curl -sLO https://github.com/argoproj/argo-rollouts/releases/download/v1.10.0/install.yaml
-sed -i "s|quay.io/argoproj/argo-rollouts:v1.10.0|$R/argo-rollouts:v1.10.0|" install.yaml
+curl -sL -o /tmp/argo-rollouts-install.yaml https://github.com/argoproj/argo-rollouts/releases/download/v1.10.0/install.yaml
+sed -i "s|quay.io/argoproj/argo-rollouts:v1.10.0|$R/argo-rollouts:v1.10.0|" /tmp/argo-rollouts-install.yaml
 
 kubectl create namespace argo-rollouts
 # --server-side is required: the two big CRDs exceed the 262144-byte annotation
 # limit of a client-side apply
-kubectl apply --server-side -n argo-rollouts -f install.yaml
+kubectl apply --server-side -n argo-rollouts -f /tmp/argo-rollouts-install.yaml
 ```
 
 ```bash
@@ -466,10 +466,10 @@ kubectl delete namespace monitoring
 kubectl get crd | grep monitoring.coreos.com    # left behind; delete them when the course is over
 ```
 
-Argo Rollouts can stay, or (delete it with the `install.yaml` you downloaded in Step 0):
+Argo Rollouts can stay, or (delete it with the manifest you downloaded in Step 0):
 
 ```bash
-kubectl delete -n argo-rollouts -f install.yaml
+kubectl delete -n argo-rollouts -f /tmp/argo-rollouts-install.yaml
 kubectl delete crd rollouts.argoproj.io analysisruns.argoproj.io \
   analysistemplates.argoproj.io clusteranalysistemplates.argoproj.io experiments.argoproj.io
 ```

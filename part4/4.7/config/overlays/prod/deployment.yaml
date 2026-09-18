@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-output-dep
+spec:
+  template:
+    spec:
+      containers:
+        - name: log-output
+          env:
+            - name: APP_VERSION
+              value: v2
