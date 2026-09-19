@@ -8,6 +8,9 @@ on:
 
 permissions:
   contents: write          # the workflow commits kustomization.yaml back to the repo
+  id-token: write          # Workload Identity Federation needs an OIDC token to mint
+                           # the access token — without it the auth step fails with
+                           # "did not inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
 
 jobs:
   build-publish-release:
