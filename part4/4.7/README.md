@@ -6,20 +6,29 @@ this lab is the smallest honest version of the chapter's flow: an app whose imag
 lives in a repository, ArgoCD watching that repository, and a commit — nothing else —
 that changes what runs.
 
-One difference from the chapter is forced by this cluster: **it cannot reach
-`github.com`** — nor `gitlab.com`, `codeberg.org` or `bitbucket.org` (measured from a
-pod: `000 in 8s`). ArgoCD clones over the network, so the repository has to live inside
-the cluster, and the lab runs a small **Gitea** beside it. Everything after that is the
-chapter's flow unchanged: a repo, a Kustomization, an `Application`, automated sync,
-selfHeal.
+One difference from the chapter is forced by this cluster, and it turned out to be
+repairable: **it could not reach `github.com`** — nor `gitlab.com`, `codeberg.org` or
+`bitbucket.org` (measured from a pod: `000 in 8s`) — because these private nodes had **no
+Cloud NAT**. ArgoCD clones over the network, so at the time of this lab the repository had
+to live inside the cluster, and the lab runs a small **Gitea** beside it. Everything after
+that is the chapter's flow unchanged: a repo, a Kustomization, an `Application`, automated
+sync, selfHeal.
+
+> **Update, after 4.8.** That missing egress was the real cause, and 4.8 repairs it: a Cloud
+> Router plus a Cloud NAT (its Step 0 carries the commands), after which `github.com`
+> answers from inside the cluster and ArgoCD reads a GitHub repository directly — with no
+> Gitea and no image mirroring at all. This lab is kept exactly as it was practised, because
+> the in-cluster repository it teaches is also the answer on a cluster where egress cannot
+> be added, and every trap below (the `Recreate` volume, the repository that comes out
+> private, the mirrors) comes from that one constraint.
 
 ---
 
 ## Step 0 — what you need in front of you
 
 - the GKE cluster and `kubectl` pointing at it;
-- `docker` (images are mirrored into your registry, because pods cannot reach
-  `quay.io`, `ghcr.io` or `public.ecr.aws`);
+- `docker` (images are mirrored into your registry — pods could not reach `quay.io`,
+  `ghcr.io` or `public.ecr.aws` before 4.8's NAT; mirroring works either way);
 - `git`;
 - **the `kustomize` CLI** — `kubectl kustomize` renders, but `kustomize edit` is what the
   release step needs:
@@ -803,6 +812,7 @@ The applications' CRDs are removed by the manifest; the ones belonging to Argo
   recognisably the same app.
 - **Secrets stay outside.** The chapter's 4.9 assumes it, and it is the standard split:
   ArgoCD reconciles configuration, not credentials.
-- **What you cannot reach shapes the design.** The chapter's repository is on GitHub;
-  this cluster cannot reach GitHub, so the repository runs inside it. The mechanism is
-  the same, and knowing *why* it changed is worth more than following the instructions.
+- **What you cannot reach shapes the design — and repairing it shapes it back.** The
+  chapter's repository is on GitHub; this cluster could not reach it, so the repository runs
+  inside it. 4.8 fixes the cause instead (one NAT) and the *same* `Application` then reads
+  GitHub. Knowing *why* the design changed is worth more than following the instructions.
