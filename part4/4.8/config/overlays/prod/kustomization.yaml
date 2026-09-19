@@ -2,19 +2,19 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: project
 resources:
-  - ../../base
+- ../../base
 patches:
-  - path: deployment.yaml
+- path: deployment.yaml
 images:
-  - name: PROJECT/TODO-APP
-    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app
-    newTag: "4.8"
-  - name: PROJECT/TODO-BACKEND
-    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-backend
-    newTag: "4.8"
-  - name: PROJECT/BROADCASTER
-    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/broadcaster
-    newTag: "4.8"
-  - name: PROJECT/CHAT-SINK
-    newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/chat-sink
-    newTag: "4.8"
+- name: PROJECT/BROADCASTER
+  newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/broadcaster
+  newTag: 8634bac3e42610b254b0f5f4defde390f41d15f8
+- name: PROJECT/CHAT-SINK
+  newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/chat-sink
+  newTag: 8634bac3e42610b254b0f5f4defde390f41d15f8
+- name: PROJECT/TODO-APP
+  newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app
+  newTag: 8634bac3e42610b254b0f5f4defde390f41d15f8
+- name: PROJECT/TODO-BACKEND
+  newName: europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-backend
+  newTag: 8634bac3e42610b254b0f5f4defde390f41d15f8
