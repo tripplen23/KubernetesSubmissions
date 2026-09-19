@@ -10,4 +10,4 @@ spec:
         - name: todo-app
           env:
             - name: VERSION
-              value: "v1"
+              value: "v2"
