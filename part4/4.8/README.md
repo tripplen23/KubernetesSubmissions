@@ -1049,6 +1049,12 @@ jobs:
         with:
           add: part4/4.8/config/overlays/prod/kustomization.yaml
           message: "Release ${{ github.sha }}"
+          # A run takes minutes, and this job commits back to the branch it read. If
+          # anything was pushed while it was building, the checkout sits behind the
+          # remote tip and the push is rejected (non-fast-forward) — the run fails
+          # after the images are already built. Rebase onto the current main first,
+          # stashing the kustomization edit made above.
+          pull: '--rebase --autostash'
 ```
 
 That placeholder/name translation is the one clumsy line in the whole flow (`todo-backend` → `PROJECT/TODO-BACKEND`, which is what `kustomize edit set image` matches on), and it is why the four commands are spelled out individually in Step 5.
