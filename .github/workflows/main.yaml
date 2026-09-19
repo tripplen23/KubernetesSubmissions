@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - '**'
+    paths:
+      - 'part3/3.6/**'
 
 env:
   PROJECT_ID: ${{ secrets.GKE_PROJECT }}
