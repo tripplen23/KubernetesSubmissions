@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-sink
+  labels:
+    app: chat-sink
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat-sink
+  template:
+    metadata:
+      labels:
+        app: chat-sink
+    spec:
+      containers:
+        - name: chat-sink
+          image: PROJECT/CHAT-SINK
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

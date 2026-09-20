@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: broadcaster
+          env:
+            - name: BROADCASTER_LOG_ONLY
+              value: "true"

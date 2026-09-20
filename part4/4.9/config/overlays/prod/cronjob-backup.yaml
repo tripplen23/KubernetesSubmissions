@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-backup
+spec:
+  schedule: "15 3 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: backup-sa
+          restartPolicy: OnFailure
+          volumes:
+            - name: dump
+              emptyDir: {}
+          containers:
+            - name: dump
+              image: postgres:16
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  pg_dump -h postgres-svc -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /dump/todo.sql
+                  echo "dump written: $(wc -c < /dump/todo.sql) bytes"
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_PASSWORD
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_USER
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_DB
+              volumeMounts:
+                - name: dump
+                  mountPath: /dump
+            - name: upload
+              image: google/cloud-sdk:slim
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  until [ -s /dump/todo.sql ]; do sleep 2; done
+                  gcloud storage cp /dump/todo.sql \
+                    gs://dwk-todo-backups-tripplen23/todo-$(date +%Y-%m-%d-%H%M).sql
+              volumeMounts:
+                - name: dump
+                  mountPath: /dump
