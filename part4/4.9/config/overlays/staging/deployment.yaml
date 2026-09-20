@@ -9,4 +9,4 @@ spec:
         - name: todo-app
           env:
             - name: VERSION
-              value: "staging"
+              value: "staging-2"
