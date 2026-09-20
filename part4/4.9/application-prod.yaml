@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: the-project-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tripplen23/KubernetesSubmissions.git
+    targetRevision: ">=4.9.0"
+    path: part4/4.9/config/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

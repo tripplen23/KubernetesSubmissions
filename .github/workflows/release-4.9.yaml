@@ -1,0 +1,74 @@
+name: Release 4.9
+
+on:
+  push:
+    branches: [main]
+    tags: ['4.9.*']
+    paths:
+      - 'part4/4.9/**'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-publish-release:
+    name: Build, Push, Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Decide which environment this run releases to
+        id: target
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "overlay=prod" >> "$GITHUB_OUTPUT"
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "overlay=staging" >> "$GITHUB_OUTPUT"
+            echo "version=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and publish the four images
+        run: |
+          gcloud auth configure-docker europe-north1-docker.pkg.dev -q
+          R=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository
+          for app in todo-app todo-backend broadcaster chat-sink; do
+            docker build -t "$R/$app:${{ steps.target.outputs.version }}" "part4/4.9/$app"
+            docker push "$R/$app:${{ steps.target.outputs.version }}"
+          done
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+
+      - name: Point the overlay at the new images
+        run: |
+          cd "part4/4.9/config/overlays/${{ steps.target.outputs.overlay }}"
+          R=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository
+          for app in todo-app todo-backend broadcaster chat-sink; do
+            kustomize edit set image \
+              "PROJECT/$(echo $app | tr 'a-z' 'A-Z')=$R/$app:${{ steps.target.outputs.version }}"
+          done
+
+      - name: Commit the release
+        uses: EndBug/add-and-commit@v10
+        with:
+          add: 'part4/4.9/config'
+          message: "Release ${{ steps.target.outputs.version }} [skip ci]"
+          pull: '--rebase --autostash'
+
+      - name: Tag the release commit
+        if: github.ref_type == 'branch'
+        run: |
+          # a promotion to production is a tag, and the tag has to point at the
+          # commit that already names those images
+          git tag "4.9.${{ github.run_number }}" || true
+          git push origin "4.9.${{ github.run_number }}"

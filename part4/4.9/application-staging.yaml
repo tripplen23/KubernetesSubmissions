@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: the-project-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tripplen23/KubernetesSubmissions.git
+    targetRevision: refs/heads/main
+    path: part4/4.9/config/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
