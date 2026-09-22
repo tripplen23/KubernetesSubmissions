@@ -1736,7 +1736,9 @@ bee4578 Initial commit
 
 The two release commits at the top are the two releases you made; the four below them are
 the hand-typed configuration from Steps 4 to 6, which is also a kind of history worth
-being able to read. Join the two repositories with the hashes in those messages:
+being able to read. Join the two repositories with the hashes in those messages. (Any
+release you make after this — including Proof 2's `4.10.1` demonstration and the
+workflow runs it starts — appends more lines of the same shape above these.)
 
 ```bash
 git log --oneline -2
