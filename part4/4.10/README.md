@@ -1298,16 +1298,18 @@ jobs:
           done
 
       - name: Commit the release into the config repository
-        uses: EndBug/add-and-commit@v10
-        with:
-          cwd: /tmp/dwk-config
-          add: 'overlays'
-          message: "${{ steps.target.outputs.what }} from code commit ${{ github.sha }}"
+        run: |
+          cd /tmp/dwk-config
+          git config user.name "GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
           # a run takes minutes and this job commits to a branch it read: if anything
-          # pushed to the config repository while it built, the push is rejected
-          # (non-fast-forward) after everything else already succeeded. Rebase onto
-          # the current main, stashing the overlay edits made above.
-          pull: '--rebase --autostash'
+          # pushed to the config repository while it built, this rebases onto the
+          # current main. autostash stashes the overlay edits for the rebase and
+          # restores them after it, but unstaged; add again, then commit and push
+          git pull --rebase --autostash origin main
+          git add overlays
+          git commit -m "${{ steps.target.outputs.what }} from code commit ${{ github.sha }}"
+          git push origin main
 
       - name: Carry the release tag into the config repository
         if: github.ref_type == 'tag'
@@ -1393,42 +1395,6 @@ kubectl apply --server-side --force-conflicts -n argocd -f /tmp/argocd-install.y
 Download it into `/tmp`, never into either repository: it is tens of thousands of lines
 of CRDs, and the next `git add -A` in either working copy would sweep it in.
 
-**The plain apply fails, and it fails in the worst way.** This is measured on this
-cluster, today:
-
-```text
-The CustomResourceDefinition "applicationsets.argoproj.io" is invalid: metadata.annotations: Too long: may not be more than 262144 bytes
-```
-
-That is what a plain `kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml`
-does: client-side apply records the manifest it sent in a
-`kubectl.kubernetes.io/last-applied-configuration` annotation on the live object, and
-that CRD's own annotations are already so large that the extra one crosses Kubernetes'
-262144-byte limit on an object's annotations. The apply errors on that single object and
-succeeds on the other several dozen, so the install looks finished.
-
-**Why that is worse than a clean failure.** ArgoCD syncs an `Application` without ever
-touching an `ApplicationSet`, so the cluster works: pods run, cards turn `Synced`, the
-project deploys, and every step of this lab passes while `applicationsets.argoproj.io` is
-missing. The fault surfaces later, in unrelated work, as `no matches for kind
-"ApplicationSet"`.
-
-**`--server-side --force-conflicts` is the fix, and both halves earn their place.**
-Server-side apply keeps field ownership in the API server instead of writing that
-annotation, which removes the size problem, and `--force-conflicts` takes ownership of
-fields an earlier client-side apply already claimed, which is what lets you re-run this
-command over a partially installed ArgoCD.
-
-Three more traps in those commands, in order of how often they bite:
-
-- **`-n argocd` is not optional on the apply.** The manifest's objects carry no
-  `namespace:` field, so whatever the command line names is where ArgoCD lands. Omit it
-  and the control plane installs into `default`, silently, because the pods do run;
-- **`kubectl create namespace argocd` before the apply**, or the apply fails with
-  *namespaces "argocd" not found* on the first namespaced object and partially succeeds;
-- **the manifest must be the upstream `stable` one.** A copy on disk you edited is a fork
-  of ArgoCD nobody is maintaining.
-
 Give it a couple of minutes. The pods pull straight from upstream — `quay.io`, `ghcr.io`,
 `public.ecr.aws` — which works because of Step 0's NAT. An `ImagePullBackOff` here is
 slowness, not a wrong registry:
@@ -1496,6 +1462,8 @@ kubectl apply -n argocd -f ~/dwk-config/applications/production.yaml
 kubectl -n argocd get applications -w
 ```
 
+![alt text](./assets/image1.png)
+
 `the-project-staging` resolves `refs/heads/main` to the release commit CI just pushed,
 turns `OutOfSync`, then `Synced` and `Healthy`, and the whole staging environment comes
 up: Postgres, NATS, four Deployments, a broadcaster in log-only mode.
@@ -1528,6 +1496,9 @@ Click a card and you get the **resource tree**: everything the Kustomization ren
 `StatefulSet → Pod` for Postgres and NATS, `Deployment → ReplicaSet → Pod` for the four
 applications, `CronJob → Job → Pod` in production only, and the Services beside them.
 Click a node for its live manifest and its events.
+
+![alt text](./assets/image2.png)
+![alt text](./assets/image3.png)
 
 **Where the replica count is.** On the **Deployment node**: the `6/6` or `1/1` beside an
 application's name is ready replicas over desired. The broadcaster node reads `1/1` in
