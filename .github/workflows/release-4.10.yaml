@@ -90,7 +90,8 @@ jobs:
         if: github.ref_type == 'tag'
         run: |
           # production's ">=4.10.0" is resolved against tags in the repository the
-          # Application names, which is this clone: one tag name, pushed by hand in
-          # the code repository above, carried across here in the same run
-          git -C /tmp/dwk-config tag "$GITHUB_REF_NAME"
-          git -C /tmp/dwk-config push origin "$GITHUB_REF_NAME"
+          # Application names, which is this clone: one tag name, pushed by hand in the
+          # code repository above, carried across here in the same run. The -f makes a
+          # re-release re-point the existing tag to its own release commit
+          git -C /tmp/dwk-config tag -f "$GITHUB_REF_NAME"
+          git -C /tmp/dwk-config push -f origin "$GITHUB_REF_NAME"
