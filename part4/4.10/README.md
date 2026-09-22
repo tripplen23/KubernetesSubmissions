@@ -1305,13 +1305,12 @@ jobs:
           cd /tmp/dwk-config
           git config user.name "GitHub Actions"
           git config user.email "actions@users.noreply.github.com"
-          # a run takes minutes and this job commits to a branch it read: if anything
-          # pushed to the config repository while it built, this rebases onto the
-          # current main. autostash stashes the overlay edits for the rebase and
-          # restores them after it, but unstaged; add again, then commit and push
-          git pull --rebase --autostash origin main
           git add overlays
           git commit -m "${{ steps.target.outputs.what }} from code commit ${{ github.sha }}"
+          # commit before the pull, so the pull has a clean tree and no stash to
+          # apply: if another release reached the config repository while this one
+          # built, the rebase moves this commit on top of it, and the push succeeds
+          git pull --rebase origin main
           git push origin main
 
       - name: Carry the release tag into the config repository
