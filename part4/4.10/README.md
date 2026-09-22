@@ -169,7 +169,10 @@ bee457872831281ee105d577cfad794d27f85dab	refs/heads/main
 
 ## Step 2 — the code repository: four Dockerfiles
 
-Build them all, locally, and stop there:
+The four application directories are the 4.9 ones copied forward unchanged — this exercise
+splits a project, it does not change it, so `part4/4.10/<app>/Dockerfile` is byte-for-byte
+`part4/4.9/<app>/Dockerfile` (and the same for `Cargo.toml` and `src/`). What has to be
+true is that they build; build them all locally and stop there:
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -177,6 +180,25 @@ for app in todo-app todo-backend broadcaster chat-sink; do
   docker build -t $R/$app:4.10.0 part4/4.10/$app
 done
 ```
+
+<details>
+<summary><code>part4/4.10/todo-app/Dockerfile</code> — the other three are the same shape (they differ only in the binary name and the port)</summary>
+
+```dockerfile
+FROM rust:1.85-slim AS builder
+WORKDIR /app
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/todo-app /usr/local/bin/todo-app
+EXPOSE 3000
+CMD ["/usr/local/bin/todo-app"]
+```
+
+</details>
 
 ---
 
@@ -222,13 +244,9 @@ three names until the secret sits where the workflow looks.
 
 Three rules about this token, and all three are about what happens when it leaks:
 
-- **it is never written into a file.** It reaches the workflow through
-  `${{ secrets.CONFIG_REPO_TOKEN }}` and nowhere else. A token pasted into a YAML file
-  is a token committed to a public repository, and the only fix is to revoke it;
-- **it is scoped to one repository and one permission**, so a workflow mistake stays
-  inside `dwk-config` instead of reaching every repository you own;
-- **it is the username `x-access-token` inside a clone URL**, which is the one place a
-  secret appears in a command:
+- **it is never written into a file.** It reaches the workflow as `${{ secrets.CONFIG_REPO_TOKEN }}` and nowhere else; a token pasted into YAML is a token committed to a public repository;
+- **it is scoped to one repository and one permission**, so a workflow mistake stays inside `dwk-config` instead of reaching every repository you own;
+- **it is the username `x-access-token` inside a clone URL**, the one place a secret appears in a command:
 
 ```text
 https://x-access-token:${{ secrets.CONFIG_REPO_TOKEN }}@github.com/tripplen23/dwk-config.git
@@ -267,7 +285,9 @@ the same twelve files in any environment, and two properties of it are deliberat
 - **no `namespace:` field anywhere.** The overlay's `namespace:` transformer owns the namespace, which is also why the overlays' strategic-merge patches need none;
 - **no Secret.** `postgres-secret` and the backup's ServiceAccount are prerequisites of the deployed project rather than parts of it, so they are applied by hand.
 
-`dwk-config: base/kustomization.yaml`
+<details>
+<summary><code>dwk-config: base/kustomization.yaml</code></summary>
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -285,7 +305,10 @@ resources:
   - deployment-chat-sink.yaml
 ```
 
-`dwk-config: base/configmap.yaml`
+</details>
+<details>
+<summary><code>dwk-config: base/configmap.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -296,9 +319,12 @@ data:
   POSTGRES_PORT: "5432"
 ```
 
+</details>
 The frontend's own configuration:
 
-`dwk-config: base/configmap-todo.yaml`
+<details>
+<summary><code>dwk-config: base/configmap-todo.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -311,11 +337,14 @@ data:
   MAX_AGE_SECS: "600"
 ```
 
+</details>
 Postgres, a StatefulSet behind a headless Service, with the data on a volume claim
 template and `PGDATA` mounted at the *parent* directory so `initdb` never sees the
 filesystem's `lost+found`:
 
-`dwk-config: base/postgres.yaml`
+<details>
+<summary><code>dwk-config: base/postgres.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -386,6 +415,7 @@ spec:
             storage: 100Mi
 ```
 
+</details>
 `postgres-secret` does not exist yet, and until Step 5's last command creates it the
 Postgres pod does not start. That is deliberate: a repository records the *reference*
 to a secret, never the value.
@@ -393,7 +423,9 @@ to a secret, never the value.
 The image cache the frontend photographs into, **ReadWriteOnce**, which is why the
 frontend's Deployment is `Recreate`:
 
-`dwk-config: base/persistentvolumeclaim.yaml`
+<details>
+<summary><code>dwk-config: base/persistentvolumeclaim.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -408,7 +440,10 @@ spec:
       storage: 1Gi
 ```
 
-`dwk-config: base/nats.yaml`
+</details>
+<details>
+<summary><code>dwk-config: base/nats.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -458,10 +493,13 @@ spec:
               memory: 128Mi
 ```
 
+</details>
 The Services the applications talk to. Their names are the reason neither overlay may
 carry a `namePrefix`:
 
-`dwk-config: base/service.yaml`
+<details>
+<summary><code>dwk-config: base/service.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -496,7 +534,10 @@ spec:
       protocol: TCP
 ```
 
-`dwk-config: base/service-chat-sink.yaml`
+</details>
+<details>
+<summary><code>dwk-config: base/service-chat-sink.yaml</code></summary>
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -511,6 +552,7 @@ spec:
       targetPort: 8080
 ```
 
+</details>
 ### The four Deployments
 
 Every project image in the base is a **placeholder**, `PROJECT/<NAME>`: the base
@@ -525,7 +567,9 @@ overlay rewrites  europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo
                   europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/chat-sink:4.10.0
 ```
 
-`dwk-config: base/deployment-todo-app.yaml`
+<details>
+<summary><code>dwk-config: base/deployment-todo-app.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -589,10 +633,13 @@ spec:
               mountPath: /usr/src/app/files
 ```
 
+</details>
 The API, with the database credentials from the Secret and the address from the
 ConfigMap:
 
-`dwk-config: base/deployment-todo-backend.yaml`
+<details>
+<summary><code>dwk-config: base/deployment-todo-backend.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -667,12 +714,15 @@ spec:
               memory: 256Mi
 ```
 
+</details>
 Six broadcasters sharing the queue group, so one event is delivered once however many
 replicas the environment asks for. **The base carries six and no
 `BROADCASTER_LOG_ONLY`**, because forwarding is the program's default and the base is
 the thing that does not know what kind of environment it is in:
 
-`dwk-config: base/deployment-broadcaster.yaml`
+<details>
+<summary><code>dwk-config: base/deployment-broadcaster.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -716,10 +766,13 @@ spec:
               memory: 128Mi
 ```
 
+</details>
 and the sink that receives what the broadcaster forwards: the cluster's stand-in for
 Discord, Telegram or Slack.
 
-`dwk-config: base/deployment-chat-sink.yaml`
+<details>
+<summary><code>dwk-config: base/deployment-chat-sink.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -755,6 +808,7 @@ spec:
               memory: 128Mi
 ```
 
+</details>
 Commit the base and push it. The repository is now the project's blueprint, and
 nothing in the cluster has noticed yet:
 
@@ -784,7 +838,9 @@ know what this lab actually deploys.
 
 ### The staging overlay
 
-`dwk-config: overlays/staging/kustomization.yaml`
+<details>
+<summary><code>dwk-config: overlays/staging/kustomization.yaml</code></summary>
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -809,6 +865,7 @@ images:
     newTag: "4.10.0"
 ```
 
+</details>
 Three fields carry the environment:
 
 - **`namespace: staging`.** Every object the base holds is rewritten into it, and there
@@ -822,7 +879,9 @@ Three fields carry the environment:
 Staging's broadcaster logs instead of forwarding. One replica, and the flag the program
 reads:
 
-`dwk-config: overlays/staging/broadcaster.yaml`
+<details>
+<summary><code>dwk-config: overlays/staging/broadcaster.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -839,9 +898,12 @@ spec:
               value: "true"
 ```
 
+</details>
 and the frontend is told which environment it is:
 
-`dwk-config: overlays/staging/deployment.yaml`
+<details>
+<summary><code>dwk-config: overlays/staging/deployment.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -857,12 +919,15 @@ spec:
               value: "staging"
 ```
 
+</details>
 The app defaults to `v1` when `VERSION` is absent, so the base stays runnable on its
 own.
 
 ### The production overlay
 
-`dwk-config: overlays/production/kustomization.yaml`
+<details>
+<summary><code>dwk-config: overlays/production/kustomization.yaml</code></summary>
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -887,6 +952,7 @@ images:
     newTag: "4.10.0"
 ```
 
+</details>
 Read the two kustomizations side by side and the entire environment difference is
 visible: the same `resources: [../../base]`, a different `namespace:`, the same four
 `images:`, and a different list of patches — `cronjob-backup.yaml` is in one
@@ -894,7 +960,9 @@ visible: the same `resources: [../../base]`, a different `namespace:`, the same 
 
 Production's frontend announces itself as `v1`:
 
-`dwk-config: overlays/production/deployment.yaml`
+<details>
+<summary><code>dwk-config: overlays/production/deployment.yaml</code></summary>
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -910,6 +978,7 @@ spec:
               value: "v1"
 ```
 
+</details>
 Production's broadcaster is the base's: six replicas, forwarding. **That half of the
 difference is the absence of a patch** — nothing in this overlay mentions
 `BROADCASTER_LOG_ONLY`, so the program's `false` default stands.
@@ -917,7 +986,9 @@ difference is the absence of a patch** — nothing in this overlay mentions
 Production's database is backed up nightly and staging's is not, and again the whole
 difference is that this file exists in one overlay:
 
-`dwk-config: overlays/production/cronjob-backup.yaml`
+<details>
+<summary><code>dwk-config: overlays/production/cronjob-backup.yaml</code></summary>
+
 ```yaml
 apiVersion: batch/v1
 kind: CronJob
@@ -976,16 +1047,13 @@ spec:
                   mountPath: /dump
 ```
 
+</details>
 Four decisions in that file, rather than syntax details:
 
-- **two containers, one `emptyDir`.** `dump` writes the SQL file, `upload` waits for it
-  and ships it, and an `emptyDir` lives exactly as long as the pod: no PVC, no cleanup;
-- **`postgres:16`, the same version as the StatefulSet.** `pg_dump` refuses to read a
-  server newer than itself, so the version is not free;
-- **`concurrencyPolicy: Forbid`.** A dump still running when the next one starts would
-  read a database mid-backup, and skipping a run is the cheaper mistake;
-- **`serviceAccountName: backup-sa`**, a ServiceAccount that is **not in the
-  repository**, for the same reason the Secret is not.
+- **two containers, one `emptyDir`.** `dump` writes the SQL file, `upload` ships it; an `emptyDir` lives exactly as long as the pod — no PVC, no cleanup;
+- **`postgres:16`, the StatefulSet's own version.** `pg_dump` refuses to read a newer server, so the version is not free;
+- **`concurrencyPolicy: Forbid`.** A dump still running would read the database mid-backup; skipping a run is the cheaper mistake;
+- **`serviceAccountName: backup-sa`**, a ServiceAccount **not in the repository**, for the same reason the Secret is not.
 
 ### The objects that stay outside the repository
 
@@ -1010,13 +1078,9 @@ gcloud projects add-iam-policy-binding dwk-gke-506208 \
   --condition=None
 ```
 
-- **the identity comes from the cluster, not from a file.** The node pool serves the GKE
-  metadata server, so `backup-sa` picks up Google credentials at run time;
-- **`--member` is scoped to one namespace**: `ns/production/sa/backup-sa` and nothing
-  else. Skip the binding and the upload container dies with `403` *does not have
-  storage.objects.create access* while the dump beside it succeeds;
-- **`objectAdmin`, not `objectCreator`**, because `gcloud storage cp` reads the object
-  back as it transfers and needs `storage.objects.get` as well as `create`.
+- **the identity comes from the cluster, not a file.** The node pool serves the GKE metadata server, so `backup-sa` picks up Google credentials at run time;
+- **`--member` is scoped to one namespace**: `ns/production/sa/backup-sa` and nothing else. Skip the binding and the upload container dies with `403` *does not have storage.objects.create access* while the dump beside it succeeds;
+- **`objectAdmin`, not `objectCreator`**, because `gcloud storage cp` reads the object back as it transfers: `storage.objects.get` as well as `create`.
 
 ArgoCD never deletes any of it, for two independent reasons, and either is enough: the
 objects are not in the repository, so nothing renders them, and `prune` deletes *removed
@@ -1052,20 +1116,9 @@ kustomize build overlays/production | grep -E "^\s+(image|namespace):" | sort -u
   namespace: production
 ```
 
-The two outputs differ by exactly one image, and it is the backup in one picture:
-production lists `google/cloud-sdk:slim`, because the CronJob's `upload` container rides
-along inside that overlay. `postgres:16` shows up twice there and once in staging: the
-StatefulSet runs it in both environments, and the CronJob's `dump` container runs it too,
-one nesting level deeper. The indentation is the whole story — the deeper lines belong to
-the CronJob, the shallower ones to the workloads both namespaces share.
+The two outputs differ by exactly one image: production lists `google/cloud-sdk:slim`, because the CronJob's `upload` container rides inside that overlay. `postgres:16` appears twice there and once in staging — the StatefulSet in both, the CronJob's `dump` container one nesting level deeper. The indentation is the story: deeper lines are the CronJob's, shallower ones belong to the workloads both namespaces share.
 
-**If `kustomize build` fails, read the file it names.** A filename that does not match a
-`resources:` entry gives
-*accumulating resources from 'persistentvolumeclaim.yaml'* followed by *no such file or
-directory*, which is a typo in the file's name and not a Kustomize problem. A patch whose
-`metadata.name` matches no object gives *no matches for Id*, naming the patch file: a
-strategic-merge patch selects its target by `apiVersion`, `kind` and `metadata.name`,
-nothing else.
+**If `kustomize build` fails, read the file it names.** A filename missing from `resources:` gives *accumulating resources from 'persistentvolumeclaim.yaml'* then *no such file or directory* — a typo in the filename, not a Kustomize problem. A patch matching no object gives *no matches for Id*: a strategic-merge patch selects its target by `apiVersion`, `kind` and `metadata.name`, nothing else.
 
 Push both overlays:
 
@@ -1087,7 +1140,9 @@ An `Application` says *which repository, which path, which revision, which names
 Both of this lab's point at the config repository they live in, so `repoURL` is the same
 in both files and the revision is the whole difference.
 
-`dwk-config: applications/staging.yaml`
+<details>
+<summary><code>dwk-config: applications/staging.yaml</code></summary>
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -1111,7 +1166,10 @@ spec:
       - CreateNamespace=true
 ```
 
-`dwk-config: applications/production.yaml`
+</details>
+<details>
+<summary><code>dwk-config: applications/production.yaml</code></summary>
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -1135,6 +1193,7 @@ spec:
       - CreateNamespace=true
 ```
 
+</details>
 Read the two side by side and the environments are three lines apart:
 
 - `destination.namespace` is `staging` and `production`, so the environments share
@@ -1224,7 +1283,9 @@ Read the history you have made in that repository before going on, with
 
 The workflow is what does the same thing to the same files from now on: a push to `main` releases to **staging**, a tag releases to **production**, and in both cases the release is a commit in the *other* repository.
 
-`.github/workflows/release-4.10.yaml`
+<details>
+<summary><code>.github/workflows/release-4.10.yaml</code></summary>
+
 ```yaml
 name: Release 4.10
 
@@ -1326,33 +1387,15 @@ jobs:
           git -C /tmp/dwk-config push -f origin "$GITHUB_REF_NAME"
 ```
 
+</details>
 Six details, each one a trap that has already bitten:
 
-- **the tag is what deploys production**, and the tag is pushed in *this* repository
-  while the constraint that consumes it lives in the other one. The last step is what
-  closes that circle: without it the production `Application` would compare forever
-  against a repository that never sees a tag, and the failure looks like ArgoCD being
-  slow rather than like a missing step;
-- **`paths:` does not apply to tag pushes.** GitHub does not evaluate path filters for
-  tag events, so `4.10.*` gets through however small the diff is — which is what makes
-  `git push origin 4.10.0` a release even on a commit that changed nothing;
-- **the workflow must live at the repository root.** GitHub runs workflows only from
-  `.github/workflows` at the root: *"You must store workflow files in the
-  `.github/workflows` directory of your repository"*. A copy inside
-  `part4/4.10/.github/workflows/` never runs, and the failure mode is silence;
-- **`id-token: write` is not optional.** It is what Workload Identity Federation mints
-  its token from. Without it the auth step fails with *did not inject
-  `$ACTIONS_ID_TOKEN_REQUEST_TOKEN`*;
-- **`contents: read` is enough, and that is worth knowing.** Nothing here pushes to the
-  repository it runs in: the config repository's push uses the fine-grained token from
-  Step 3, which the clone embeds in the remote URL. If you ever add a `git tag` for the
-  code repository itself, that step needs `contents: write`, and the failure without it
-  is a rejected push at the very end of a successful run;
-- **`[skip ci]` has no job here, and its absence is deliberate.** The commit this
-  workflow makes lands in the config repository, which holds no workflows at all, so
-  nothing can re-trigger itself. In a single-repository setup the same commit would
-  touch the path filter and start its own release; the split removes that class of
-  accident rather than papering over it.
+- **the tag is what deploys production, and it is pushed in *this* repository** while the constraint that consumes it lives in the other one. Without the last step, production would compare forever against a repository that never sees a tag — and the failure looks like ArgoCD being slow, not like a missing step;
+- **`paths:` does not apply to tag pushes.** GitHub skips path filters for tag events, so `4.10.*` gets through however small the diff is: `git push origin 4.10.0` is a release even on a commit that changed nothing;
+- **the workflow must live at the repository root.** GitHub runs workflows only from `.github/workflows` at the root. A copy inside `part4/4.10/.github/workflows/` never runs, and the failure mode is silence;
+- **`id-token: write` is not optional.** Workload Identity Federation mints its token from it; without it the auth step fails with *did not inject `$ACTIONS_ID_TOKEN_REQUEST_TOKEN`*;
+- **`contents: read` is enough.** Nothing here pushes to the repository it runs in — the config push rides the Step 3 token embedded in the clone URL. Adding a `git tag` for the code repository itself would need `contents: write`, or the push is rejected at the very end of a successful run;
+- **`[skip ci]` has no job here.** The commit lands in the config repository, which holds no workflows, so nothing re-triggers itself; the split removes that class of accident rather than papering over it.
 
 The shape to notice: **CI never talks to the cluster.** It publishes images, writes a
 line of YAML in another repository, and pushes a tag. What happens next is ArgoCD's
@@ -1479,19 +1522,9 @@ kubectl -n argocd get applications -w
 turns `OutOfSync`, then `Synced` and `Healthy`, and the whole staging environment comes
 up: Postgres, NATS, four Deployments, a broadcaster in log-only mode.
 
-`the-project-production` is a different story for the moment, and the difference is the
-lesson. Its revision is `>=4.10.0`, and the repository it resolves that constraint in is
-the config repository, which has no such tag until proof 2 pushes one. Until then the
-card shows the constraint itself and the Application compares to nothing. That is the
-same behaviour as an unresolvable revision, and it is expected rather than broken: no
-commit can satisfy a semver constraint, and a tag that does not exist yet cannot either.
+`the-project-production` is the lesson of the pair. Its revision is `>=4.10.0`, resolved against the config repository, which has no such tag until Proof 2 pushes one: the card shows the constraint itself and compares to nothing. Expected, not broken — no commit satisfies a semver constraint, and a tag that does not exist yet cannot either.
 
-**The two badges answer two different questions**, and reading them separately is most of
-what the UI is for. **Sync Status** compares the cluster with the revision ArgoCD
-resolved: `Synced`, `OutOfSync`, and `Unknown` when the comparison itself failed, which
-is what production shows until a tag exists. **Health Status** is about the workloads:
-`Healthy`, `Progressing`, or `Degraded`, which is when the resource tree is where you
-look. The same two fields from the terminal:
+**The two badges answer two different questions**, and nothing in the UI is more useful than reading them apart. **Sync Status** compares the cluster with the revision ArgoCD resolved: `Synced`, `OutOfSync`, or `Unknown` when the comparison itself failed — what production shows until a tag exists. **Health Status** is the workloads: `Healthy`, `Progressing`, or `Degraded`, which is when the resource tree is where you look. The same two fields from the terminal:
 
 ```bash
 kubectl -n argocd get application the-project-staging \
@@ -1623,12 +1656,7 @@ NAME                        READY   STATUS    RESTARTS   AGE
 todo-app-<deployment hash>-<random suffix>   1/1     Running   0          46s
 ```
 
-**What the receipts show.** Staging's revision is the config repository commit CI made
-from your code commit; production's line is still the constraint, because only a tag
-resolves it. Nobody touched the cluster and neither `Application` was edited: a commit
-in the code repository moved staging, and the staging page shows the text you typed.
-Pod-name suffixes are random; that run also lined up 1/1 rows for the other three
-applications and both StatefulSets.
+**What the receipts show.** Staging's revision is the config commit CI made from your code commit; production's line is still the constraint, because only a tag resolves it. Nobody touched the cluster: a commit in the code repository moved staging, and the staging page shows the text you typed. Pod-name suffixes are random; that run also lined up 1/1 rows for the other three applications and both StatefulSets.
 
 ### Proof 2 — a tag on the code repository deploys production
 
@@ -1798,12 +1826,7 @@ part4/4.10/todo-backend/src/main.rs
 0
 ```
 
-Twenty-four files where the project lives (seventeen of code, seven screenshots of
-the UI from Step 9), none of them a Kubernetes manifest. Twenty
-manifests in the repository ArgoCD reads, none of them Rust. The counts are what makes
-the boundary hold: adding a manifest to the code repository now means either the file
-never gets deployed or the boundary has already been broken, and both are visible in a
-pull request.
+Twenty-four files where the project lives (seventeen of code, seven screenshots of the UI from Step 9), none of them a manifest. Twenty manifests in the repository ArgoCD reads, none of them Rust. The counts are what makes the boundary hold: a manifest added to the code repository either never gets deployed or has already broken it — both visible in a pull request.
 
 Run those four commands once more and keep the output with your submission: those counts
 are the shortest description of this exercise there is.
@@ -1829,15 +1852,9 @@ rm -rf ~/dwk-config
 
 Four notes on that list:
 
-- **both repositories stay.** The submission holds the code and the workflow; the config
-  repository holds the manifests and the release history. They are the deliverable, and
-  there is nothing to remove because both are yours;
-- **the hand-made objects go with the namespaces.** `postgres-secret` in both, and
-  `backup-sa` in production, are deleted with `kubectl delete namespace`; there is
-  nothing extra to hunt for *because* they were never ArgoCD's;
-- **the CRDs go with the manifest.** `kubectl delete -f` removes the objects the manifest
-  created, CRDs included, and it is the same server-side story as the install: deleting
-  what you applied is the mirror image of applying it;
+- **both repositories stay.** They are the deliverable: code and workflow on one side, manifests and release history on the other;
+- **the hand-made objects go with the namespaces.** `postgres-secret` in both, `backup-sa` in production: `kubectl delete namespace` takes them, because they were never ArgoCD's;
+- **the CRDs go with the manifest.** `kubectl delete -f` removes what the manifest created, CRDs included — deleting is the mirror image of applying;
 - **the port-forward dies with the UI** — Ctrl-C the terminal from Step 8.
 
 The one credential this lab created is worth revoking when the course is done, because a
@@ -1861,27 +1878,9 @@ gcloud compute routers delete dwk-router --region=europe-north1 --project=dwk-gk
 
 ## P.S. — what this exercise leaves you with
 
-- **ArgoCD reads one repository, and it is the one without code.** Everything the cluster
-  runs is in a repository that no compiler has ever seen, so a deployment can be reviewed
-  by someone who cannot build Rust, and an application change cannot deploy a manifest by
-  accident. The permission boundary and the review boundary end up in the same place.
-- **The arrow points one way: code decides, CI translates, ArgoCD applies.** CI never
-  holds cluster credentials, and the cluster never holds build credentials. Each side can
-  be compromised without the other side's access, which is the practical reason to pay for
-  the second repository.
-- **A commit is a staging release, and a tag is a production release.** `refs/heads/main`
-  moves with every commit and `>=4.10.0` matches only a tag, so the policy lives in two
-  lines of YAML rather than in a person's discipline.
-- **The tag is a decision with a duration, and it has to be carried across.** A hundred
-  commits change staging and production not once; one `git push origin 4.10.0` in the code
-  repository changes production, and the workflow carries the name into the repository
-  ArgoCD actually reads. A constraint whose tags never arrive is indistinguishable from a
-  slow sync until you look.
-- **Two of the three credentials never enter a repository.** The fine-grained token lives
-  in GitHub's secret store and `postgres-secret` in the cluster, while the repositories
-  record only the *references* to them: `secretKeyRef: postgres-secret` and
-  `${{ secrets.CONFIG_REPO_TOKEN }}`. That is what makes a public configuration repository
-  a safe place to keep configuration.
-- **The split is countable.** Seventeen files and no manifest on one side, twenty
-  manifests and no Rust on the other. A boundary you can measure with `grep -c` is a
-  boundary that survives the next person who is in a hurry.
+- **ArgoCD reads one repository, and it is the one without code.** Everything the cluster runs is in a repository no compiler has seen: a deployment can be reviewed by someone who cannot build Rust, and an application change cannot deploy a manifest by accident.
+- **The arrow points one way: code decides, CI translates, ArgoCD applies.** CI never holds cluster credentials and the cluster never holds build credentials — that separation is the practical reason to pay for the second repository.
+- **A commit is a staging release, and a tag is a production release.** `refs/heads/main` moves with every commit, `>=4.10.0` matches only a tag. The policy is two lines of YAML, not a person's discipline.
+- **The tag is a decision with a duration, and it has to be carried across.** One `git push origin 4.10.0` in the code repository changes production; the workflow carries the name into the repository ArgoCD reads. A constraint whose tags never arrive is indistinguishable from a slow sync.
+- **Two of the three credentials never enter a repository.** The token lives in GitHub's secret store, `postgres-secret` in the cluster; the repositories record only references to them — `secretKeyRef: postgres-secret`, `${{ secrets.CONFIG_REPO_TOKEN }}`.
+- **The split is countable.** Twenty-four files and no manifest on one side, twenty manifests and no Rust on the other: a boundary `grep -c` can measure survives the next person in a hurry.
