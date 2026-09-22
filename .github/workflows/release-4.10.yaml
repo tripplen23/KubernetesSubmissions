@@ -1,0 +1,94 @@
+name: Release 4.10
+
+on:
+  push:
+    # a branch push is filtered by path; a tag push is NOT — GitHub does not
+    # evaluate `paths:` for tag events, which is exactly what this lab wants:
+    # part4/4.10/** decides branch pushes, and every 4.10.* tag gets through
+    branches: [main]
+    tags: ['4.10.*']
+    paths:
+      - 'part4/4.10/**'
+
+permissions:
+  contents: read           # the checkout only; the push into the config repository
+                           # rides on CONFIG_REPO_TOKEN, not on GITHUB_TOKEN
+  id-token: write          # Workload Identity Federation needs an OIDC token to mint
+                           # the access token, and without it the auth step fails with
+                           # "did not inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
+jobs:
+  build-publish-release:
+    name: Build, Push, Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Decide which environment this run releases to
+        id: target
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "overlay=production" >> "$GITHUB_OUTPUT"
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "what=Release $GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "overlay=staging" >> "$GITHUB_OUTPUT"
+            echo "version=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "what=Release to staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and publish the four images
+        run: |
+          gcloud auth configure-docker europe-north1-docker.pkg.dev -q
+          R=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository
+          for app in todo-app todo-backend broadcaster chat-sink; do
+            docker build -t "$R/$app:${{ steps.target.outputs.version }}" "part4/4.10/$app"
+            docker push "$R/$app:${{ steps.target.outputs.version }}"
+          done
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+
+      - name: Clone the config repository
+        run: |
+          git clone \
+            "https://x-access-token:${{ secrets.CONFIG_REPO_TOKEN }}@github.com/tripplen23/dwk-config.git" \
+            /tmp/dwk-config
+
+      - name: Point the overlay at the new images
+        run: |
+          cd "/tmp/dwk-config/overlays/${{ steps.target.outputs.overlay }}"
+          R=europe-north1-docker.pkg.dev/${{ secrets.GKE_PROJECT }}/my-repository
+          for app in todo-app todo-backend broadcaster chat-sink; do
+            kustomize edit set image \
+              "PROJECT/$(echo $app | tr 'a-z' 'A-Z')=$R/$app:${{ steps.target.outputs.version }}"
+          done
+
+      - name: Commit the release into the config repository
+        uses: EndBug/add-and-commit@v10
+        with:
+          cwd: /tmp/dwk-config
+          add: 'overlays'
+          message: "${{ steps.target.outputs.what }} from code commit ${{ github.sha }}"
+          # a run takes minutes and this job commits to a branch it read: if anything
+          # pushed to the config repository while it built, the push is rejected
+          # (non-fast-forward) after everything else already succeeded. Rebase onto
+          # the current main, stashing the overlay edits made above.
+          pull: '--rebase --autostash'
+
+      - name: Carry the release tag into the config repository
+        if: github.ref_type == 'tag'
+        run: |
+          # production's ">=4.10.0" is resolved against tags in the repository the
+          # Application names, which is this clone: one tag name, pushed by hand in
+          # the code repository above, carried across here in the same run
+          git -C /tmp/dwk-config tag "$GITHUB_REF_NAME"
+          git -C /tmp/dwk-config push origin "$GITHUB_REF_NAME"
