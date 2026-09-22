@@ -69,6 +69,12 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | [`part4/4.9/`](./part4/4.9) | 4.9 — The project, step 25: two environments, one repository | **staging** and **production** off one base — staging follows `refs/heads/main`, production the semver constraint `>=4.9.0`, so the tag is the promotion (a commit reached staging 186 s later) | `europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/{todo-app,todo-backend,broadcaster,chat-sink}:4.9` (+ `postgres:16`, `nats:2.14.6-alpine`, `google/cloud-sdk:slim`) | [tag `4.9`](https://github.com/tripplen23/KubernetesSubmissions/tree/4.9/part4/4.9) |
 | [`part4/4.10/`](./part4/4.10) | 4.10 — The project, the grande finale: the code and the configuration in two repositories | The split itself: this repository holds the code and the release workflow, the config repository holds every Kubernetes object; a filtered push releases to staging, a tag to production and is carried across | `europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/{todo-app,todo-backend,broadcaster,chat-sink}:4.10.0` and `:4.10.1` (+ `postgres:16`, `nats:2.14.6-alpine`, `google/cloud-sdk:slim`) | [tag `4.10.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/4.10.1/part4/4.10) · [config repo](https://github.com/tripplen23/dwk-config) |
 
+### Part 5
+
+| Folder | Exercise | App | Image | Submit link |
+|---|---|---|---|---|
+| [`part5/5.1/`](./part5/5.1) | 5.1 — DIY CRD & Controller: DummySite | A `DummySite` CRD with `website_url` plus a `client-go` controller that creates a Deployment and a Service per object, so a DummySite with `https://example.com/` serves a copy of that page (Rust site server with `axum` + `reqwest`) | local k3d images `{dummysite-server,dummysite-controller}:5.1` (imported with `k3d image import`, no registry) | [tag `5.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/5.1/part5/5.1) |
+
 ## Prerequisites
 
 A running Kubernetes cluster with `kubectl` connected to it. Quickstart with k3d:
