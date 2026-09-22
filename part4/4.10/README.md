@@ -1309,9 +1309,10 @@ jobs:
           git commit -m "${{ steps.target.outputs.what }} from code commit ${{ github.sha }}"
           # commit before the pull, so the pull has a clean tree and no stash to
           # apply: if another release reached the config repository while this one
-          # built, the rebase moves this commit on top of it, and the push succeeds
+          # built, the rebase moves this commit on top of it. A push rejected by a
+          # racing release is tried once more: pull, then push again
           git pull --rebase origin main
-          git push origin main
+          git push origin main || { git pull --rebase origin main && git push origin main; }
 
       - name: Carry the release tag into the config repository
         if: github.ref_type == 'tag'
