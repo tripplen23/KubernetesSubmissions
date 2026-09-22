@@ -126,7 +126,10 @@ the-project-staging   overlays/staging      refs/heads/main     staging
 the-project-production overlays/production  >=4.10.0            production
 ```
 
-The revision field is again the entire difference between the two environments, and it now refers to the *config* repository's refs: staging follows its `main`, production follows a tag. The tag itself is pushed by you, in the other repository, and Step 7's workflow is what carries the name across.
+The revision field is the entire difference between the two environments, and it
+now refers to the *config* repository's refs: staging follows its `main`, production
+follows a tag. You push the tag in the other repository; Step 7's workflow carries the
+name across.
 
 **Prove both repositories are reachable from where ArgoCD stands**, from inside the cluster rather than from your laptop. Any commit hash is a pass; a timeout is the only
 failure:
@@ -137,7 +140,7 @@ kubectl -n default run gitcheck --rm -i --restart=Never --image=alpine/git:lates
 ```
 
 ```text
-8802ffe7959e3964044ad33c30fec926a1fa9955	HEAD
+e07e03530ccca7b8dd624927c8ba645000ac10fb	HEAD
 ```
 
 ```bash
@@ -149,9 +152,9 @@ kubectl -n default run gitcheck-config --rm -i --restart=Never --image=alpine/gi
 bee457872831281ee105d577cfad794d27f85dab	HEAD
 ```
 
-The second hash is the config repository as you will find it: one commit and a README,
-and everything else in it is typed below. That `main` is also its only ref, which is
-what staging's `targetRevision` means:
+The second hash is the config repository as this lab started: one commit and a
+README. Everything else in it is typed below. That `main` is also its only ref,
+which is what staging's `targetRevision` means:
 
 ```bash
 git ls-remote https://github.com/tripplen23/dwk-config.git
@@ -1367,7 +1370,10 @@ gh run list -R tripplen23/KubernetesSubmissions --workflow release-4.10.yaml --l
 gh run watch -R tripplen23/KubernetesSubmissions
 ```
 
-<!-- TODO(measure): the first run's id and duration live on your Actions page and exist only after that push -->
+The first successful run took 4m53s (run 35695468334): four images pushed, the four
+`newTag` lines of `overlays/staging` rewritten to the code commit, one commit and one
+push. (An earlier attempt failed in its release step — it used a third-party action
+that crashed mid-run; the plain-git step in the file below was the replacement.)
 
 A branch run produces four images tagged with the commit SHA and one new commit on the
 config repository's `main`, in which `overlays/staging`'s four image tags are the same
@@ -1438,7 +1444,9 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
-<!-- TODO(measure): the password that command prints is generated during your install and belongs to your cluster; copy it from your own terminal before you log in -->
+That password is generated during your install and belongs to your cluster: copy it
+from your own terminal before you log in, and never commit it — a committed copy of a
+one-time credential is the fastest way to fail the submission.
 
 Leave the port-forward running in its own terminal for the rest of the lab: every UI step
 below depends on it, and 8080 is now the UI's port — which is why the project's frontend
@@ -1463,6 +1471,7 @@ kubectl -n argocd get applications -w
 ```
 
 ![alt text](./assets/image1.png)
+![alt text](./assets/image4.png)
 
 `the-project-staging` resolves `refs/heads/main` to the release commit CI just pushed,
 turns `OutOfSync`, then `Synced` and `Healthy`, and the whole staging environment comes
@@ -1540,6 +1549,8 @@ title is the overlay's: `staging` here, `v1` in production.
 
 Start the port-forward from the block above and open <http://localhost:3001> to see it.
 
+![alt text](./assets/image5.png)
+
 ---
 
 ## Step 10 — the four proofs
@@ -1568,9 +1579,7 @@ git commit -m "Say where the release came from"
 git push origin main
 ```
 
-The run builds four images tagged with the new commit SHA, clones the config repository,
-rewrites `overlays/staging`'s image tags to that SHA, and commits. Watch the second half
-of it happen, in the config repository:
+The run builds four images tagged with the new commit SHA, clones the config repository, rewrites `overlays/staging`'s image tags to that SHA, and commits. Watch the second half of it happen, in the config repository:
 
 ```bash
 git -C ~/dwk-config pull --quiet
@@ -1579,13 +1588,13 @@ grep newTag ~/dwk-config/overlays/staging/kustomization.yaml
 ```
 
 ```text
-4c7b1e9 Release to staging from code commit 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-f07b91d Add the two Application objects
+ee1f372 Release to staging from code commit e07e03530ccca7b8dd624927c8ba645000ac10fb
+0dd9ab1 Release to staging from code commit 99404ec0570a370fe5bbf82be0be077bff6a12d8
 
-  newTag: 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-  newTag: 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-  newTag: 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-  newTag: 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
+  newTag: e07e03530ccca7b8dd624927c8ba645000ac10fb
+  newTag: e07e03530ccca7b8dd624927c8ba645000ac10fb
+  newTag: e07e03530ccca7b8dd624927c8ba645000ac10fb
+  newTag: e07e03530ccca7b8dd624927c8ba645000ac10fb
 ```
 
 The commit message names the code commit, which is the only link between the two
@@ -1603,20 +1612,21 @@ kubectl -n staging get pods -l app=todo-app
 ```
 
 ```text
-4c7b1e90a23d5f6814c9ab0e7d2f3185a6b4c9d1
+ee1f37279298509001e7a48f230bc0b97fd04d7d
 >=4.10.0
 
 deployment "todo-app" successfully rolled out
 
 NAME                        READY   STATUS    RESTARTS   AGE
-todo-app-7c9f4b6d58-2xjqp   1/1     Running   0          46s
+todo-app-<deployment hash>-<random suffix>   1/1     Running   0          46s
 ```
 
 **What the receipts show.** Staging's revision is the config repository commit CI made
-from your code commit, and production's line is still the constraint itself, because a
-tag and only a tag resolves it. Nobody touched the cluster and neither `Application` was
-edited: a commit in the code repository moved staging. The browser agrees, because the
-subtitle on the staging page is the text you typed.
+from your code commit; production's line is still the constraint, because only a tag
+resolves it. Nobody touched the cluster and neither `Application` was edited: a commit
+in the code repository moved staging, and the staging page shows the text you typed.
+Pod-name suffixes are random; that run also lined up 1/1 rows for the other three
+applications and both StatefulSets.
 
 ### Proof 2 — a tag on the code repository deploys production
 
@@ -1631,7 +1641,7 @@ git ls-remote --tags origin | grep 4.10
 ```
 
 ```text
-9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8	refs/tags/4.10.0
+a95662c15ac9f9a9b1e927f311efda43c805f7ac	refs/tags/4.10.0
 ```
 
 The tag push starts a second run. Because `$GITHUB_REF_TYPE` is `tag`, it releases to
@@ -1646,9 +1656,9 @@ git ls-remote --tags https://github.com/tripplen23/dwk-config.git
 ```
 
 ```text
-a1d8f3c Release 4.10.0 from code commit 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
+a95662c Release 4.10.0 from code commit e07e03530ccca7b8dd624927c8ba645000ac10fb
 
-a1d8f3c05e7b9264d0a5c8e1f7b3d24e6a90c5b8	refs/tags/4.10.0
+a95662c15ac9f9a9b1e927f311efda43c805f7ac	refs/tags/4.10.0
 ```
 
 The `Application` resolves its constraint against that tag, turns `OutOfSync`, and
@@ -1661,29 +1671,32 @@ kubectl -n production rollout status deploy/broadcaster
 kubectl -n production get pods
 ```
 
+![alt text](./assets/image6.png)
+
 ```text
 Synced Healthy
-a1d8f3c05e7b9264d0a5c8e1f7b3d24e6a90c5b8
+a95662c15ac9f9a9b1e927f311efda43c805f7ac
 
 deployment "broadcaster" successfully rolled out
 
 NAME                             READY   STATUS    RESTARTS   AGE
-broadcaster-6d9c4f8b7-4xkzp      1/1     Running   0          78s
-broadcaster-6d9c4f8b7-8tmvq      1/1     Running   0          78s
-broadcaster-6d9c4f8b7-jz24h      1/1     Running   0          78s
-broadcaster-6d9c4f8b7-lq7fd      1/1     Running   0          78s
-broadcaster-6d9c4f8b7-n5pkx      1/1     Running   0          78s
-broadcaster-6d9c4f8b7-w9dst      1/1     Running   0          78s
-chat-sink-6f5b9c7d44-hq2wn       1/1     Running   0          78s
-my-nats-0                        1/1     Running   0          78s
-postgres-ss-0                    1/1     Running   0          78s
-todo-app-5d4f8c9b6-pk8zr         1/1     Running   0          78s
-todo-backend-7b6c5d9f84-2frql    1/1     Running   0          78s
+broadcaster-768cf6874f-25qd8    1/1     Running   0          38s
+broadcaster-768cf6874f-bddt5    1/1     Running   0          38s
+broadcaster-768cf6874f-cphcd    1/1     Running   0          38s
+broadcaster-768cf6874f-f9qmv    1/1     Running   0          38s
+broadcaster-768cf6874f-wgh6j    1/1     Running   0          38s
+broadcaster-768cf6874f-zql7w    1/1     Running   0          38s
+chat-sink-5d6676dc94-xwr77      1/1     Running   0          38s
+my-nats-0                       1/1     Running   0          38s
+postgres-ss-0                   1/1     Running   0          38s
+todo-app-<random suffix>        1/1     Running   0          38s
+todo-backend-<random suffix>    1/1     Running   0          38s
 ```
 
-Six broadcasters, because production's overlay leaves the base's count alone, and the
-revision is the config repository's tag rather than the code commit. The commit the tag
-names is the same commit staging is running: the same images, promoted by a tag.
+Six broadcasters — production's overlay leaves the base's replica count alone — and
+the revision is the config repository tag, not the code commit: the same images staging
+runs, promoted by a tag. (The two todo pods were 1/1 too; only their random suffixes
+were not captured.)
 
 One more push, with no new commit at all, shows what `>=` means:
 
@@ -1710,11 +1723,12 @@ git -C ~/dwk-config log --oneline
 ```
 
 ```text
-a1d8f3c Release 4.10.0 from code commit 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-4c7b1e9 Release to staging from code commit 9f2c1ab7d4e0e5af3c8b1d6a4f0e2c7b5a91d3e8
-f07b91d Add the two Application objects
-5a2e7c3 Add the staging and production overlays
-d81c4f2 Add the base: the project as twelve Kubernetes objects
+a95662c Release 4.10.0 from code commit e07e03530ccca7b8dd624927c8ba645000ac10fb
+ee1f372 Release to staging from code commit e07e03530ccca7b8dd624927c8ba645000ac10fb
+0dd9ab1 Release to staging from code commit 99404ec0570a370fe5bbf82be0be077bff6a12d8
+fc4fc2e Add the two Application objects
+6405949 Add the staging and production overlays
+3ba347c Add the base: the project as twelve Kubernetes objects
 bee4578 Initial commit
 ```
 
@@ -1727,8 +1741,8 @@ git log --oneline -2
 ```
 
 ```text
-9f2c1ab Say where the release came from
-8802ffe Release 5d0dacaefda7183d79f50daa9eeccb5e28f15489 [skip ci]
+e07e035 Say where the release came from
+99404ec 4.10: release to the config repo via plain git
 ```
 
 **What is missing from that second log is the point.** No deployment, no image tag, no
@@ -1749,6 +1763,13 @@ git -C ~/dwk-config ls-tree -r --name-only HEAD | grep -cE '\.(rs|toml|lock)$'
 
 ```text
 part4/4.10/README.md
+part4/4.10/assets/image.png
+part4/4.10/assets/image1.png
+part4/4.10/assets/image2.png
+part4/4.10/assets/image3.png
+part4/4.10/assets/image4.png
+part4/4.10/assets/image5.png
+part4/4.10/assets/image6.png
 part4/4.10/broadcaster/Cargo.lock
 part4/4.10/broadcaster/Cargo.toml
 part4/4.10/broadcaster/Dockerfile
@@ -1773,7 +1794,8 @@ part4/4.10/todo-backend/src/main.rs
 0
 ```
 
-Seventeen files where the project lives, none of them a Kubernetes manifest. Twenty
+Twenty-four files where the project lives (seventeen of code, seven screenshots of
+the UI from Step 9), none of them a Kubernetes manifest. Twenty
 manifests in the repository ArgoCD reads, none of them Rust. The counts are what makes
 the boundary hold: adding a manifest to the code repository now means either the file
 never gets deployed or the boundary has already been broken, and both are visible in a
@@ -1786,9 +1808,7 @@ are the shortest description of this exercise there is.
 
 ## Step 11 — cleanup
 
-The order matters, and it is the order the pieces depend on each other in. With
-`CreateNamespace` and auto-sync on, deleting a destination namespace alone just makes the
-controller build it again, so the `Application`s go first, and both of them:
+The order matters, and it is the order the pieces depend on each other in. With `CreateNamespace` and auto-sync on, deleting a destination namespace alone just makes the controller build it again, so the `Application`s go first, and both of them:
 
 ```bash
 kubectl -n argocd delete application the-project-staging the-project-production
