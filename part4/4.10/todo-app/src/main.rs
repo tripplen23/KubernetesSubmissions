@@ -201,7 +201,7 @@ async fn index(State(state): State<AppState>) -> Html<String> {
   </head>
   <body>
     <h1>Todo App</h1>
-    <p class="muted">version <code>{version}</code> &mdash; DevOps with Kubernetes</p>
+    <p class="muted">version <code>{version}</code> &mdash; DevOps with Kubernetes <3 </p>
     <p>This page is served by the <code>todo-app</code> pod; todos are
        stored by the <code>todo-backend</code> service (reached via its
        Service DNS name).</p>
