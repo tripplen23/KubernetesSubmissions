@@ -74,6 +74,7 @@ Submissions for the University of Helsinki's **DevOps with Kubernetes** MOOC
 | Folder | Exercise | App | Image | Submit link |
 |---|---|---|---|---|
 | [`part5/5.1/`](./part5/5.1) | 5.1 — DIY CRD & Controller: DummySite | A `DummySite` CRD with `website_url` plus a `client-go` controller that creates a Deployment and a Service per object, so a DummySite with `https://example.com/` serves a copy of that page (Rust site server with `axum` + `reqwest`) | local k3d images `{dummysite-server,dummysite-controller}:5.1` (imported with `k3d image import`, no registry) | [tag `5.1`](https://github.com/tripplen23/KubernetesSubmissions/tree/5.1/part5/5.1) |
+| [`part5/5.2/`](./part5/5.2) | 5.2 — Getting started with Istio service mesh | Istio **ambient** mode on k3d (no sidecars): the Bookinfo sample app behind a Gateway API gateway, the namespace labelled into the mesh, and Kiali reading the Prometheus from `monitoring` — with the k3d traps that cost real time written down | none of our own: the sample app, the mesh and the UI all come from the Istio 1.31.1 release and the `prometheus-community` chart | [tag `5.2`](https://github.com/tripplen23/KubernetesSubmissions/tree/5.2/part5/5.2) |
 
 ## Prerequisites
 
