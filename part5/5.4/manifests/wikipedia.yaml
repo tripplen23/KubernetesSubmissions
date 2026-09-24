@@ -1,0 +1,74 @@
+# The whole exercise in one object: one nginx container serving a shared
+# directory, one init container that fills it before nginx starts, one sidecar
+# that keeps replacing what is in it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wikipedia
+  namespace: wikipedia
+  labels:
+    app: wikipedia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wikipedia
+  template:
+    metadata:
+      labels:
+        app: wikipedia
+    spec:
+      volumes:
+        - name: www
+          emptyDir: {}
+      initContainers:
+        # Runs to completion before the nginx container starts, so the first
+        # page anyone sees is already the Kubernetes article.
+        - name: fetch-kubernetes
+          image: curlimages/curl:8.10.0
+          command:
+            - sh
+            - -c
+            - curl -sSL -A "dwk-5.4-lab/1.0" -o /www/index.html https://en.wikipedia.org/wiki/Kubernetes
+          volumeMounts:
+            - name: www
+              mountPath: /www
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            # nginx serves whatever is here; the image's own index.html is
+            # replaced by the volume, which starts empty.
+            - name: www
+              mountPath: /usr/share/nginx/html
+        - name: random-page
+          image: wikipedia-sidecar:5.4
+          env:
+            # The exercise's range. Lower both to watch the loop in seconds.
+            - name: MIN_WAIT_SECONDS
+              value: "300"
+            - name: MAX_WAIT_SECONDS
+              value: "900"
+          volumeMounts:
+            - name: www
+              mountPath: /www
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wikipedia-svc
+  namespace: wikipedia
+  labels:
+    app: wikipedia
+spec:
+  type: ClusterIP
+  selector:
+    app: wikipedia
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

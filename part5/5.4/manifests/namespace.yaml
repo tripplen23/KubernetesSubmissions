@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wikipedia
+  labels:
+    # Not needed by 5.4 itself: this is just the chapter's mode, so the pod can
+    # be read next to the mesh work of the previous exercises. Ambient adds no
+    # container to the pod — which is the thing the next exercise's sidecar
+    # discussion is about.
+    istio.io/dataplane-mode: ambient
