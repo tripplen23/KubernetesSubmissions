@@ -323,6 +323,8 @@ $ curl -s http://localhost:8080/ | grep -o "<title>[^<]*</title>"
 
 ![http://localhost:8080 in a browser: the unstyled Wikipedia page, its navigation and table of contents running down the left side, and the article body itself further down the page](./assets/image.png)
 
+![the article the sidecar fetched (Special:Random), scrolled into view: the 1972–73 Kentucky Wildcats men's basketball infobox — Southeastern Conference, Coaches No. 15 / AP No. 17, a 20-8 record, head coach Joe B. Hall — with the article's own categories listed underneath](./assets/image1.png)
+
 The article arrives without its styling, and the reason is in the file: the stylesheets are absolute paths that only exist on `en.wikipedia.org`, so nothing served from `localhost:8080` can fetch them. That is what an app that serves Wikipedia pages looks like, not a broken download:
 
 ```console
@@ -396,4 +398,4 @@ $ kubectl -n wikipedia exec deploy/wikipedia -c random-page -- md5sum /usr/local
 - Mounting a volume over a directory hides the image's own content there. nginx's `Welcome to nginx!` index is gone the moment the volume is mounted, which is what makes the init container's fetch visible at all.
 - A receipt that contains a timer needs both sides of it. Before the first wait is over, the log holds one countdown line and the page is still the init container's article; the fetch line does not exist yet, and reading that as a failure is the easy mistake to make.
 - A `-w` format string that repeats the URL invites copying the line only up to the closing quote, and `curl` answers `curl: (2) no URL specified` — the operand at the end is the part it cannot do without. Keep the URL in one place, and if a copied line ends in an unmatched quote or a shortened tail, the shell either waits for more input or answers with `grep: Usage:` — re-copy the whole line rather than editing it.
-- A screenshot of the page in the browser is in `assets/`.
+- Screenshots of the page in the browser — its top, and the fetched article scrolled into view — are in `assets/`.
