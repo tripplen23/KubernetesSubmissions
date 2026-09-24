@@ -1,0 +1,19 @@
+# The Layer 7 proxy for greeter-svc. Ambient's ztunnel works on TCP and knows
+# nothing about HTTP, so a weighted split between two versions needs this extra
+# hop. This is the manifest `istioctl waypoint apply -n exercises --name
+# greeter-waypoint` writes — including the allowedRoutes block that the command
+# adds for you.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: greeter-waypoint
+  namespace: exercises
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - allowedRoutes:
+        namespaces:
+          from: Same
+      name: mesh
+      port: 15008
+      protocol: HBONE

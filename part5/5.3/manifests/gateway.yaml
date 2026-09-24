@@ -1,0 +1,29 @@
+# The way in from outside: a Gateway for the log app, so the page is reachable
+# from the host — the lab reads it at http://localhost:9080.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: log-gateway
+  namespace: exercises
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: log-route
+  namespace: exercises
+spec:
+  parentRefs:
+    - name: log-gateway
+  rules:
+    - backendRefs:
+        - name: log-output-svc
+          port: 3000

@@ -1,0 +1,125 @@
+# Version 1 — the one that should answer most of the time.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter-v1
+  namespace: exercises
+  labels:
+    app: greeter
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: greeter
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: greeter
+        version: v1
+    spec:
+      containers:
+        - name: greeter
+          image: greeter:5.3
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: GREETING
+              value: "hello"
+---
+# Version 2 — same image, different greeting.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter-v2
+  namespace: exercises
+  labels:
+    app: greeter
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: greeter
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: greeter
+        version: v2
+    spec:
+      containers:
+        - name: greeter
+          image: greeter:5.3
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: GREETING
+              value: "howdy"
+---
+# The name the log app calls, and the Service the HTTPRoute is attached to.
+# Its label is what sends this traffic through the waypoint — without a Layer 7
+# proxy in the path there is nothing that could weigh two backends against each
+# other, and the route below is simply ignored.
+apiVersion: v1
+kind: Service
+metadata:
+  name: greeter-svc
+  namespace: exercises
+  labels:
+    app: greeter
+    istio.io/use-waypoint: greeter-waypoint
+spec:
+  type: ClusterIP
+  selector:
+    app: greeter
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+# Backend Service for v1 — the HTTPRoute points here, not at the pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: greeter-svc-1
+  namespace: exercises
+  labels:
+    app: greeter
+    version: v1
+spec:
+  type: ClusterIP
+  selector:
+    app: greeter
+    version: v1
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+# Backend Service for v2.
+apiVersion: v1
+kind: Service
+metadata:
+  name: greeter-svc-2
+  namespace: exercises
+  labels:
+    app: greeter
+    version: v2
+spec:
+  type: ClusterIP
+  selector:
+    app: greeter
+    version: v2
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
