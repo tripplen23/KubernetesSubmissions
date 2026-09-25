@@ -1,0 +1,15 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: pingpong
+  namespace: exercises
+spec:
+  template:
+    metadata:
+      annotations:
+        # Back to zero when nothing is calling: the whole point of the exercise.
+        autoscaling.knative.dev/minScale: "0"
+    spec:
+      containers:
+        - image: dev.local/ping-pong:5.7
+          imagePullPolicy: IfNotPresent
