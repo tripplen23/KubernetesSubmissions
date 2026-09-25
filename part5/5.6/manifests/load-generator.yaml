@@ -1,0 +1,26 @@
+# Six clients, each holding one 300 ms request at a time, for a minute: a Job
+# with parallelism, so the load is one object instead of six hand-written
+# commands. What the autoscaler follows is requests in flight, not clients,
+# which is the point of the example — six clients on the `/` route (milliseconds
+# per answer) would not move it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load
+spec:
+  parallelism: 6
+  completions: 6
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: client
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              end=$(( $(date +%s) + 60 ))
+              while [ "$(date +%s)" -lt "$end" ]; do
+                wget -q -O- "http://hello-autoscale.default.svc.cluster.local/work?ms=300" >/dev/null 2>&1
+              done

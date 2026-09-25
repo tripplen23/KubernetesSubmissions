@@ -1,0 +1,13 @@
+# The before picture for Step 2: the same Service, with the image left as a bare
+# name. Knative resolves that name against its registry before anything reaches
+# the node, so the revision never starts — apply this into a namespace of its
+# own (`kubectl apply -n trap -f ...`) and delete the namespace afterwards.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello
+spec:
+  template:
+    spec:
+      containers:
+        - image: hello:5.6

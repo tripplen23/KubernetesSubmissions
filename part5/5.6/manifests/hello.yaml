@@ -1,0 +1,24 @@
+# A Knative Service: the app, and none of the Deployment, Service, Ingress or
+# autoscaler you would have written yourself. The platform creates all of them
+# from this, and it is what makes "scale to zero" possible.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        # The dev.local prefix is not decoration: Knative resolves every image
+        # tag to a digest against its registry before the pod is created, and
+        # a bare `hello:5.6` means docker.io/library/hello — Docker Hub answers
+        # 401 and the revision never starts (ContainerMissing). dev.local is on
+        # Knative's list of registries it skips resolving.
+        - image: dev.local/hello:5.6
+          imagePullPolicy: IfNotPresent
+          # The runtime contract's other half: configuration is environment,
+          # so one image can answer as many revisions.
+          env:
+            - name: TARGET
+              value: "Knative 5.6"

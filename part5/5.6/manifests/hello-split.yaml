@@ -1,0 +1,24 @@
+# The same Service, with the environment changed: applying it creates a second
+# revision rather than restarting the first one, and the traffic block decides
+# how requests are divided between them.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: dev.local/hello:5.6
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TARGET
+              value: "the newer revision"
+  traffic:
+    # Revision names are the lab's own (`kubectl get revisions` lists yours):
+    # the first two are hello-00001 and hello-00002.
+    - revisionName: hello-00001
+      percent: 50
+    - revisionName: hello-00002
+      percent: 50
