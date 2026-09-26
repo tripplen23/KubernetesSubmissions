@@ -4,8 +4,6 @@ The exercise: make the **Ping pong** service of the Log Output app run serverles
 
 Log Output stays what it is — a Deployment with a writer and a reader over a shared `emptyDir` — but Ping pong becomes a **Knative Service**. Knative then owns its Deployment, Service, ReplicaSet and pod, starts a pod when someone calls it, and stops it when nobody does.
 
-The lab carries the two applications' sources (`ping-pong/`, `log-output/` — Rust, axum 0.8) and the receipts below from an actual run. The Dockerfiles and the manifests are on this page, meant to be typed.
-
 Platform: Knative Serving **v1.23.0** on Kubernetes **v1.34.1** (k3d).
 
 ## Step 0 — the platform
@@ -70,10 +68,7 @@ EXPOSE 3000
 CMD ["/usr/local/bin/ping-pong"]
 ```
 
-`COPY Cargo.lock*` does not fail when there is no lock file — it just copies nothing, and cargo then resolves the
-dependencies from scratch, which can pick versions the pinned compiler cannot build. Both applications here ship
-their lock files, so the two builds above succeeded; the block below is what the first attempt looked like before
-`log-output/Cargo.lock` was put in place. You can reproduce it by moving the lock out of the way:
+`COPY Cargo.lock*` does not fail when there is no lock file — it just copies nothing, and cargo then resolves the dependencies from scratch, which can pick versions the pinned compiler cannot build. Both applications here ship their lock files, so the two builds above succeeded; the block below is what the first attempt looked like before `log-output/Cargo.lock` was put in place. You can reproduce it by moving the lock out of the way:
 
 ```console
 $ mv log-output/Cargo.lock /tmp/ && docker build -t dev.local/log-output:5.7 log-output/
@@ -89,8 +84,7 @@ $ mv /tmp/Cargo.lock log-output/Cargo.lock
 $ docker build -t dev.local/log-output:5.7 log-output/   # and it builds again
 ```
 
-It is worth knowing because the failure is about a dependency you never chose: nothing in the Dockerfile or the
-`Cargo.toml` says `icu`.
+It is worth knowing because the failure is about a dependency you never chose: nothing in the Dockerfile or the `Cargo.toml` says `icu`.
 
 Log Output's Dockerfile is the same file with one word changed: the binary is `log-output`, so both the `COPY --from` line and `CMD` name it. Everything else — base images, `EXPOSE 3000`, the lock line — is identical.
 
@@ -268,6 +262,12 @@ NAME                                        READY   STATUS    RESTARTS   AGE
 log-output-5956dc699f-vc75m                 2/2     Running   0          5s
 pingpong-00001-deployment-b698c585b-l6dkg   2/2     Running   0          18s
 ```
+
+That second pod is only there for about a minute. Nothing has called ping-pong yet, so the autoscaler takes it back to
+zero on its own: run the same command a little later and you will see `log-output` alone, because the receipt above was
+taken seconds after the apply. That is not a broken step — `kubectl get revisions -n exercises` still lists
+`pingpong-00001`, and any request brings a pod back. Step 6 measures exactly this; if you want to see both pods here,
+run the command right after the apply or wake the revision first with the curl in Step 4.
 
 Two things to read there. The app has no `PORT` in the manifest and no `containerPort`: Knative injects `PORT` and the app already reads it, which is the runtime contract doing its job. And the pod has two containers — `user-container` is the Rust binary, `queue-proxy` is Knative's, and the URL it printed is the one the ingress answering.
 
