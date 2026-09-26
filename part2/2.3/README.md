@@ -43,16 +43,15 @@ curl -s http://localhost:8081/log | tail -1
 # Ping / Pongs: 3
 ```
 
-> **K8s concept**: `kubectl get pods` with no `-n` only shows the
-> `default` namespace — which is now empty. You must use
-> `-n exercises` (or `-A` / `--all-namespaces`) to see these pods.
+> **K8s concept**: `kubectl get pods` with no `-n` shows only the
+> `default` namespace, which is now empty. Use `-n exercises` (or `-A` /
+> `--all-namespaces`) to see these pods.
 
 ## Step 3 — Cross-namespace DNS (debugging pod)
 
 The course notes that a service in another namespace is reachable as
-`<service>.<namespace>`. Prove it with the busybox debugging pod —
-run it in the **default** namespace and hit the `exercises` services by
-their fully-qualified name:
+`<service>.<namespace>`. Prove it with the busybox pod: run it in
+**default** and hit the `exercises` services by fully-qualified name:
 
 ```bash
 # busybox.yaml — note: NO namespace (it goes to default)
@@ -89,8 +88,8 @@ kubectl exec -it my-busybox -- wget -qO - http://ping-pong-svc:3000/pongs
 kubectl delete pod my-busybox
 ```
 
-> This is the `service.namespace` DNS form from the course material:
-> `cat-pictures.ns-test`. The short name only works _inside_ the same
+> That is the `service.namespace` DNS form from the course material
+> (`cat-pictures.ns-test`). The short name works only _inside_ the
 > namespace.
 
 ## Step 4 — Clean up
@@ -104,13 +103,13 @@ kubectl get all -n exercises
 
 ## P/S
 
-1. **Namespaces isolate resources** — same app names can coexist in
-   different namespaces; `kubectl` scopes to one namespace unless you
-   pass `-n` or `-A`.
-2. **DNS is namespace-aware**: short name `<svc>` works inside the
-   namespace; `<svc>.<namespace>` works from anywhere in the cluster.
-3. **Namespaced resources need namespace-qualified references** — the
-   Traefik middleware annotation had to switch from `default-…` to
+1. **Namespaces isolate resources**: same app names can coexist in
+   different namespaces; `kubectl` scopes to one unless you pass `-n`
+   or `-A`.
+2. **DNS is namespace-aware**: short `<svc>` resolves only inside its
+   namespace; `<svc>.<namespace>` resolves cluster-wide.
+3. **Namespaced resources need namespace-qualified references**: the
+   Traefik middleware annotation switched from `default-…` to
    `exercises-…`.
-4. **No code change for organization**: moving apps between namespaces
-   is pure manifest work; the binaries/images stay identical.
+4. **Organization is pure manifest work**: moving apps between
+   namespaces changes no binaries or images.

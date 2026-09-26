@@ -1,32 +1,31 @@
 # 5.1 — DIY CRD & Controller: DummySite
 
-The exercise is at the bottom of Chapter 6's *Custom Resource Definitions* page, and in short it asks for this: a
-`DummySite` resource with a string property `website_url`, plus a controller that receives created DummySite objects
-from the API and creates all of the resources the functionality needs. Creating a DummySite with
-`website_url: https://example.com/` has to produce a copy of that website. The page fixes the workflow that must
-succeed — *apply role, account and binding, apply deployment, apply DummySite* — and leaves the technology to you.
-It does not depend on the earlier exercises.
+The exercise sits at the bottom of Chapter 6's *Custom Resource Definitions* page. It asks for a `DummySite` resource
+with a string property `website_url`, plus a controller that receives created DummySite objects from the API and
+creates the resources the functionality needs. A DummySite with `website_url: https://example.com/` has to produce a
+copy of that website. The page fixes the workflow that must succeed (*apply role, account and binding, apply
+deployment, apply DummySite*) and leaves the technology to you. It does not depend on the earlier exercises.
 
-The material's own example is a `Countdown` resource whose controller schedules Jobs, written in JavaScript
-(`kubernetes-hy/material-example/app10`) and in Go (`app10-go`) — and the page says Go is the better option of the
-two. This lab takes that advice where it matters and splits the work by language: **the controller is Go**
-(`client-go`), because that is what the CRD exercise is about, and **the server is Rust** (`axum` + `reqwest`),
-because the rest of this project is Rust. Both are practiced, neither is fighting the material.
+The material's example is a `Countdown` resource whose controller schedules Jobs, written in JavaScript
+(`kubernetes-hy/material-example/app10`) and in Go (`app10-go`); the page says Go is the better option. This lab
+takes that advice and splits the work by language: **the controller is Go** (`client-go`), because that is what the
+CRD exercise is about, and **the server is Rust** (`axum` + `reqwest`), because the rest of the project is Rust.
+Both are practiced, neither is fighting the material.
 
-Three pieces make the exercise work, and they are worth naming before the steps:
+Three pieces make the exercise work:
 
 - a **CRD** teaches the API server a new kind, so `DummySite` objects can be stored at all;
 - a **server** that fetches one URL and serves the copy — the thing a site ends up needing;
-- a **controller** that watches DummySites and creates the Deployment and Service for each one.
+- a **controller** that watches DummySites and creates a Deployment and Service for each;
 
-The controller is where the exercise is decided, and the idea behind it is small: watch a resource, and for every
-object that appears, make the cluster match what that object asks for. In Go that is an informer, a handler and a
-couple of API calls — no HTTP plumbing and no generated code required.
+The controller is where the exercise is decided, and the idea is small: watch a resource and, for every
+object that appears, make the cluster match what it asks for. In Go that is an informer, a handler and two
+API calls, with no HTTP plumbing and no generated code.
 
 ## Step 0 — the cluster
 
 Everything below runs against the local **k3d** cluster `mycluster` (context `k3d-mycluster`). The commands are bare
-`kubectl`, so they act on whatever context is current — and after Part 4 that is easily the GKE cluster, whose
+`kubectl`, so they act on whichever context is current, and after Part 4 that is easily the GKE cluster, whose
 kubeconfig namespace is `project`. Switch once:
 
 ```bash
@@ -34,22 +33,21 @@ kubectl config use-context k3d-mycluster
 kubectl get nodes
 ```
 
-Or prefix each command with `--context k3d-mycluster` instead of switching. Otherwise the namespaced objects — the
-ServiceAccount in Step 3, the Deployment in Step 4 — go to `project`, which does not exist on that cluster, and Step 3
-stops with `namespaces "project" not found` (the ClusterRole and ClusterRoleBinding report `unchanged`, because they
-are cluster-scoped and already exist there).
+Or prefix each command with `--context k3d-mycluster` instead of switching. Otherwise the namespaced objects (the
+ServiceAccount in Step 3, the Deployment in Step 4) go to `project`, which does not exist on that cluster, and Step 3
+stops with `namespaces "project" not found`. The ClusterRole and ClusterRoleBinding report `unchanged`, being
+cluster-scoped and already there.
 
 ## Step 1 — the resource: a CustomResourceDefinition
 
-A CRD is a description of a new kind of object. Until it exists the API server has nowhere to put a `DummySite`, and
+A CRD describes a new kind of object. Until it exists the API server has nowhere to put a `DummySite`, and
 `kubectl apply -f dummysite-example.yaml` fails with `no matches for kind "DummySite" in version "stable.dwk/v1"`.
-After it exists, the API serves `/apis/stable.dwk/v1/dummysites`, which is the path the controller will watch.
+Once it exists, the API serves `/apis/stable.dwk/v1/dummysites`, the path the controller watches.
 
-Three things in the file are the whole idea: `group: stable.dwk` plus the names (`kind: DummySite`, `plural:
-dummysites`) decide the URL and the kind; `scope: Namespaced` means a DummySite lives in a namespace like a Pod; and
-`versions[0].schema` is an OpenAPI schema, so the API server validates your objects — a `DummySite` without
-`website_url` is rejected rather than stored broken. `additionalPrinterColumns` adds the `WEBSITE` column to
-`kubectl get`.
+Three things in the file matter: `group: stable.dwk` plus the names (`kind: DummySite`, `plural: dummysites`) decide
+the URL and the kind; `scope: Namespaced` means a DummySite lives in a namespace like a Pod; and `versions[0].schema`
+is an OpenAPI schema, so the API server validates your objects: a `DummySite` without `website_url` is rejected,
+not stored broken. `additionalPrinterColumns` adds the `WEBSITE` column to `kubectl get`.
 
 `manifests/dummysite-crd.yaml`
 
@@ -112,7 +110,7 @@ dummysites.stable.dwk   2026-09-22T18:51:06Z
 ## Step 2 — build both images and hand them to the cluster
 
 From `part5/5.1`. Each `docker build` takes its **context** from the folder you name and reads `Dockerfile` from
-inside that folder, so the two files have to be saved where the listing in Step 0 shows them:
+inside it, so the two files must sit where the Step 0 listing shows them:
 
 ```bash
 docker build -t dummysite-server:5.1 dummysite-server
@@ -120,9 +118,9 @@ docker build -t dummysite-controller:5.1 dummysite-controller
 k3d image import dummysite-server:5.1 dummysite-controller:5.1 -c mycluster
 ```
 
-Both images are compiled inside their builder stages, so the first build is the slow one: the Rust server builds its
+Both images are compiled in their builder stages, so the first build is the slow one: the Rust server builds its
 own tree (`axum`, `reqwest`), the Go controller downloads and compiles `client-go`. Later builds reuse Docker's layer
-cache as long as the dependency files — `Cargo.toml`/`Cargo.lock` and `go.mod`/`go.sum` — stay unchanged.
+cache as long as the dependency files (`Cargo.toml`/`Cargo.lock`, `go.mod`/`go.sum`) stay unchanged.
 
 ```bash
 docker images | grep dummysite
@@ -143,10 +141,10 @@ INFO[0008] Successfully imported 2 image(s) into 1 cluster(s)
 
 ## Step 3 — who the controller is, and what it may do
 
-The controller runs with a ServiceAccount, and RBAC decides what that account can touch. Two choices follow from how the controller is written:
+The controller runs with a ServiceAccount, and RBAC decides what it can touch. Two choices follow from how it is written:
 
-- a **ClusterRole** and a **ClusterRoleBinding**, not a Role and a RoleBinding, because the controller watches DummySites in every namespace (the informer is created with `metav1.NamespaceAll`) while it runs in `default`; a RoleBinding would restrict it to one namespace;
-- the rules are deliberately thin — `get`, `list`, `watch` on dummysites and `create` on deployments and services, nothing else. No `delete` verb: the garbage collector does the deleting through the ownerReferences.
+- a **ClusterRole** and **ClusterRoleBinding**, not a Role and RoleBinding, because the controller watches DummySites in every namespace (the informer uses `metav1.NamespaceAll`) while running in `default`; a RoleBinding would restrict it to one namespace;
+- the rules are deliberately thin: `get`, `list`, `watch` on dummysites, `create` on deployments and services, nothing else. No `delete` verb; the garbage collector deletes through the ownerReferences.
 
 `manifests/dummysite-rbac.yaml`
 
@@ -201,8 +199,8 @@ clusterrolebinding.rbac.authorization.k8s.io/dummysite-controller-rolebinding cr
 
 ## Step 4 — the controller Deployment
 
-The Deployment is ordinary apart from `serviceAccountName`, which is what gives the pod the account from Step 3.
-`SERVER_IMAGE` is passed in as an environment variable so the image the controller creates is set in one place.
+The Deployment is ordinary apart from `serviceAccountName`, which gives the pod the Step 3 account.
+`SERVER_IMAGE` is an environment variable so the image it creates is set in one place.
 
 `manifests/dummysite-controller.yaml`
 
@@ -243,7 +241,7 @@ Waiting for deployment "dummysite-controller-dep" rollout to finish: 0 of 1 upda
 deployment "dummysite-controller-dep" successfully rolled out
 ```
 
-While you are here, pin down **which** image is running. A tag can point at an older build than the source you just changed — a failed `docker build` leaves the previous image in place and the old one can behave identically, so the
+While you are here, pin down **which** image is running. A tag can point at an older build than the source you changed: a failed `docker build` leaves the previous image in place, and it behaves identically, so the
 tag alone proves nothing:
 
 ```bash
@@ -255,7 +253,7 @@ kubectl get pod -l app=dummysite-controller \
 dummysite-controller:5.1  sha256:330c60719b52298e32392215bf1f36969a16f941fc8fe9c4c79638d7a778b424
 ```
 
-That digest is the local image's `docker image inspect` id — if it is not, the cluster is running something older than what you built.
+That digest is the local image's `docker image inspect` id; if it is not, the cluster runs something older than you built.
 
 ## Step 5 — a DummySite, and the controller reacting
 
@@ -285,8 +283,8 @@ NAME      WEBSITE
 example   https://example.com/
 ```
 
-`WEBSITE` is there because of `additionalPrinterColumns` in the CRD, and `get dummy` works because of the short name.
-Now the controller's log for the same moment — this is the reconciliation happening:
+`WEBSITE` comes from `additionalPrinterColumns` in the CRD, and `get dummy` from the short name.
+Now the controller's log for the same moment, the reconciliation:
 
 ```bash
 kubectl logs -l app=dummysite-controller --tail=5
@@ -299,7 +297,7 @@ created deployment example-dep
 created service example-svc
 ```
 
-And the objects that were not in any file you wrote:
+And the objects that no file here contains:
 
 ```bash
 kubectl get deploy,svc
@@ -317,8 +315,8 @@ service/kubernetes    ClusterIP   10.43.0.1      <none>        443/TCP   54d
 
 ## Step 6 — proof that the copy is really served
 
-Three checks, because "it works" is a claim and each of these pins a different part of it. First the owned objects
-name their owner, which is what makes Step 7 work:
+Three checks, because "it works" is a claim and each pins a different part of it. First, the owned objects
+name their owner, which makes Step 7 work:
 
 ```bash
 kubectl get deploy example-dep -o jsonpath='{.metadata.ownerReferences[0].kind}/{.metadata.ownerReferences[0].name} blockOwnerDeletion={.metadata.ownerReferences[0].blockOwnerDeletion}{"\n"}'
@@ -328,7 +326,7 @@ kubectl get deploy example-dep -o jsonpath='{.metadata.ownerReferences[0].kind}/
 DummySite/example blockOwnerDeletion=true
 ```
 
-Then the server's own log, showing it fetched the page and how big the copy is:
+Then the server's own log, showing the fetch and the copy's size:
 
 ```bash
 kubectl logs -l app=dummysite-example --tail=3
@@ -339,7 +337,7 @@ dummysite-server for https://example.com/ listening on port 3000
 fetched https://example.com/ -> 559 characters
 ```
 
-Finally the page itself. Ask for it **from inside the cluster**, so the request goes through the Service by name — this proves the Service and its DNS entry, not merely that a pod is running:
+Finally the page itself, asked for **from inside the cluster** so the request goes through the Service by name. That proves the Service and its DNS entry, not just a running pod:
 
 ```bash
 kubectl run curl-test --rm -i --restart=Never --image=curlimages/curl:8.10.1 -- -sS --max-time 15 http://example-svc | head -3
@@ -349,23 +347,23 @@ kubectl run curl-test --rm -i --restart=Never --image=curlimages/curl:8.10.1 -- 
 <!doctype html><html lang="en"><head><title>Example Domain</title><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opacity:0.8}a:link,a:visited{color:#348}</style></head><body><div><h1>Example Domain</h1><p>This domain is for use in documentation examples without needing permission. Avoid use in operations.</p><p><a href="https://iana.org/domains/example">Learn more</a></p></div></body></html>
 ```
 
-That is the exercise's acceptance test: a DummySite with `https://example.com/` produced a copy of `https://example.com/`, served by resources the controller created. A more complex site will come out imperfect — the page allows that (Wikipedia's CSS breaks, as it says).
+That is the acceptance test: a DummySite with `https://example.com/` produced a copy of that page, served by resources the controller created. A more complex site comes out imperfect, and the page allows that (Wikipedia's CSS breaks, as it says).
 
-To look at that page in your own browser, forward a local port to the Service — `example-svc` is a `ClusterIP`, so it
+To look at the page in your own browser, forward a local port to the Service: `example-svc` is a `ClusterIP`, so it
 has no address outside the cluster and this lab sets up no ingress:
 
 ```bash
 kubectl port-forward svc/example-svc 8080:80
 ```
 
-Then open **http://localhost:8080** (leave the command running while you look; `Ctrl-C` when you are done). The name
-`http://example-svc` used above resolves only inside the cluster, so typing that into your browser will not work.
+Then open **http://localhost:8080** (leave it running; `Ctrl-C` when you are done). The name
+`http://example-svc` resolves only inside the cluster, so it will not work in your browser.
 
 ![alt text](image.png)
 
 ## Step 7 — delete it, and watch Kubernetes clean up
 
-Delete the resource, not its children, and use a name that cannot be mistaken for a daemonset:
+Delete the resource, not its children, and use a name that cannot be taken for a daemonset:
 
 ```bash
 kubectl delete dummysites/example
@@ -381,8 +379,8 @@ NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
 service/kubernetes   ClusterIP   10.43.0.1    <none>        443/TCP   54d
 ```
 
-`example-dep` and `example-svc` are gone, and the controller never had a delete verb or a line of cleanup code. The
-controller's log records the event; the removal itself is the garbage collector following the `ownerReference`:
+`example-dep` and `example-svc` are gone, and the controller never had a delete verb or a line of cleanup code. Its
+log records the event; the removal is the garbage collector following the `ownerReference`:
 
 ```bash
 kubectl logs -l app=dummysite-controller --tail=2
@@ -394,14 +392,14 @@ kubectl logs -l app=dummysite-controller --tail=2
 
 ## P.S.
 
-- A CRD is only a data shape. Everything interesting — creating, watching, deleting — is the controller, and the
+- A CRD is only a data shape. Everything interesting (creating, watching, deleting) is the controller, and the
   controller is a loop: *what does this object ask for, and what is missing?*
-- Prefer ownerReferences over cleanup code. The garbage collector is already running; your delete logic is the code
-  that will be wrong after a restart.
-- RBAC is part of the design. The verbs you grant are the actions your controller can take, so thin rules (and no
-  `delete`) are a statement about how it works, not a formality.
-- Take the material's advice where it points at a language: Go for the CRD controller (the page recommends it, and
-  `client-go` is the library that follows from that), the project's Rust everywhere else. The same three ideas —
-  watch, reconcile, own — show up in both.
-- Verify the claim, not the symptom: a running pod is not a served page, which is why Step 6 fetches the page through
-  the Service by name.
+- Prefer ownerReferences over cleanup code. The garbage collector is already running; your delete logic is what
+  will be wrong after a restart.
+- RBAC is part of the design: the verbs you grant are the actions your controller can take, so thin rules (and no
+  `delete`) say something about how it works, not a formality.
+- Take the material's advice where it points at a language: Go for the CRD controller (`client-go` follows from the
+  page's recommendation), the project's Rust everywhere else. The same three ideas
+  (watch, reconcile, own) show up in both.
+- Verify the claim, not the symptom: a running pod is not a served page, which is why Step 6 fetches through
+  the Service.

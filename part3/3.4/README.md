@@ -17,17 +17,15 @@
 
 ## Knowledge: route rewriting in the Gateway API
 
-In 3.3 the ping-pong **app** had to expose `/pingpong` because the cluster
-routed `/pingpong` to it. That leaks the cluster's URL layout into the app
-code — annoying if the layout changes.
+In 3.3 ping-pong had to expose `/pingpong` because the cluster routed it
+there, leaking the cluster's URL layout into app code.
 
-The Gateway API lets the **route** do the rewriting instead:
+The Gateway API lets the **route** rewrite instead:
 
 - The **app** keeps its natural endpoints (`/` for pongs, `/pongs` for the
   count).
-- The **HTTPRoute** matches the public path `/pingpong` and applies a
-  **URLRewrite filter** that rewrites the path to `/` **before** forwarding
-  to ping-pong-svc.
+- The **HTTPRoute** applies a **URLRewrite filter** rewriting `/pingpong`
+  to `/` **before** forwarding to ping-pong-svc.
 
 ### The URLRewrite filter
 
@@ -40,8 +38,8 @@ filters:
         replacePrefixMatch: /
 ```
 
-- `ReplacePrefixMatch: /` means: replace the matched prefix (`/pingpong`)
-  with `/` → `/pingpong` becomes `/`, `/pingpong/anything` → `/anything`.
+- `ReplacePrefixMatch: /` swaps the matched prefix (`/pingpong`) for `/`
+  (`/pingpong` → `/`, `/pingpong/anything` → `/anything`).
 - The client still sees `/pingpong`; the app never knows.
 
 ### Resulting flow
@@ -52,8 +50,7 @@ Internet ── GKE Gateway (L7 LB) ── HTTPRoute
               └─ /          ────────────────▶ log-output-svc ──▶ log-output app at /
 ```
 
-Everything else (GatewayClass, Gateway, ClusterIP services, health checks)
-is the same as 3.3.
+Everything else is as in 3.3.
 
 ## Step 1 — create the GKE cluster + enable the Gateway API
 
@@ -70,8 +67,8 @@ gcloud container clusters create dwk-cluster \
   --project=dwk-gke-506208
 ```
 
-Wait for `STATUS: RUNNING` (~4-5 min). Fixes (persist at project level, but
-run them if re-creating the cluster):
+Wait for `STATUS: RUNNING` (~4-5 min), then the fixes (they persist at
+project level; rerun when re-creating):
 
 ```bash
 gcloud container clusters update dwk-cluster --zone=europe-north1-b \
@@ -97,7 +94,7 @@ kubectl get nodes            # 4 nodes Ready
 ```
 
 > ⚠️ If `update ... --gateway-api=standard` says `NOT_FOUND: no cluster
-> named 'dwk-cluster'`, you skipped 1a — create the cluster first 😄
+> named 'dwk-cluster'`, you skipped 1a: create it first 😄
 
 ## Step 2 — build & push Dockerfiles
 
@@ -122,7 +119,7 @@ kubectl get pods        # both Running
 kubectl get svc         # both ClusterIP
 ```
 
-Watch the Gateway get its external IP (~5 min):
+Watch the Gateway's external IP (~5 min):
 
 ```bash
 kubectl get gateway my-gateway
@@ -168,12 +165,12 @@ gcloud compute addresses list
 
 ## P/S:
 
-1. **Route rewriting decouples URL structure from app code** — the app
-   serves natural paths; the gateway maps public paths onto them.
-2. `URLRewrite` + `ReplacePrefixMatch: /` turns `/pingpong` → `/`; GKE
-   implements this filter on the L7 LB (client URL stays unchanged).
-3. The app change: ping-pong's pong logic **moved to `/`** — no more
-   `/pingpong` in code (see `src/main.rs`).
+1. **Route rewriting decouples URL structure from app code**: the app
+   serves natural paths, the gateway maps public paths onto them.
+2. `URLRewrite` + `ReplacePrefixMatch: /` maps `/pingpong` → `/` on the L7
+   LB (client URL unchanged).
+3. The app change: pong logic **moved to `/`**; no `/pingpong` in the code
+   (`src/main.rs`).
 4. Rule order: specific (`/pingpong`) before catch-all (`/`).
-5. Health checks still probe `/` — they'll pop the pong counter; harmless.
-6. **Delete the cluster when idle** — GKE bills per node/hour + the LB.
+5. Health checks still probe `/`, popping the pong counter; harmless.
+6. **Delete the cluster when idle**; GKE bills per node/hour + LB.

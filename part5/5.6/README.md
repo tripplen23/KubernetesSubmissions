@@ -1,15 +1,21 @@
 # 5.6 — Trying serverless
 
-The exercise asks for Knative Serving on k3d, then for its guide's three examples: a Knative Service, traffic splitting, and autoscaling. The platform here is Knative Serving **v1.23.0** on Kubernetes **v1.34.1**, the version the exercise's cluster command pins.
+The exercise asks for Knative Serving on k3d, then the guide's three examples: a Knative Service, traffic
+splitting, and autoscaling. The platform is Knative Serving **v1.23.0** on Kubernetes **v1.34.1**, the version
+the exercise's cluster command pins.
 
-What the lab carries: the app in `app/` (Rust, one file, built to Knative's runtime contract), five manifests, and the receipts below from an actual run.
+What the lab carries: the app in `app/` (Rust, one file, built to Knative's runtime contract), five manifests,
+and the receipts.
 
-Every receipt is a `console` block: lines starting with `$` are commands, everything else is what they printed, so paste the `$` lines and not the output. Receipts come after the command that creates the state they show, so run each step in order.
+Every receipt is a `console` block: `$` lines are commands, the rest is output. Receipts come after the
+command that creates the state they show, so run each step in order.
 
 ## Step 0 — the cluster
 
-The exercise's own command, with the reason for each flag: `--image rancher/k3s:v1.34.1-k3s1` is the Kubernetes the current Knative wants, `--disable=traefik` clears the ingress path for Kourier, `-p 8081:80@loadbalancer` is how the host reaches the Knative gateway, and `--port 8082:30080@agent:0` is the service port the exercise's own curl
-example uses. The name is k3d's first argument: leave it out and the cluster is `k3s-default`, disagreeing with every receipt below.
+The exercise's own command, with the reason for each flag: `--image rancher/k3s:v1.34.1-k3s1` is the Kubernetes
+the current Knative wants, `--disable=traefik` clears the ingress path for Kourier, `-p 8081:80@loadbalancer` is
+how the host reaches the Knative gateway, and `--port 8082:30080@agent:0` is the service port the exercise's curl
+example uses. The name is k3d's first argument: leave it out and the cluster is `k3s-default`.
 
 ```bash
 k3d cluster create knative --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 \
@@ -24,16 +30,19 @@ k3d-knative-agent-1    Ready    <none>          10s   v1.34.1+k3s1
 k3d-knative-server-0   Ready    control-plane   15s   v1.34.1+k3s1
 ```
 
-If a cluster of that name already exists (the receipts below came from one), `k3d cluster delete knative` first, so the command above is the one you actually run — or keep it and start from Step 1 instead.
+If a cluster of that name already exists (the receipts came from one), `k3d cluster delete knative`
+first, so the command above is the one you run. Otherwise keep it and start from Step 1.
 
-If the create fails on its last step with `Bind for 0.0.0.0:8081 failed: port is already allocated`, another container already publishes 8081 — on this machine, the cluster an earlier lab left running. `docker ps --filter
-publish=8081` names it and `k3d cluster delete <name>` frees the port; k3d rolls the failed attempt back by itself.
+If the create fails on its last step with `Bind for 0.0.0.0:8081 failed: port is already allocated`, another
+container already publishes 8081, here the cluster an earlier lab left running. `docker ps --filter
+publish=8081` names it and `k3d cluster delete <name>` frees the port; k3d rolls the failed attempt back itself.
 
-Every command below is run with `--context k3d-knative`; the receipts leave the flag out for width.
+Every command runs with `--context k3d-knative`; the receipts drop the flag for width.
 
 ## Step 1 — Knative Serving, Kourier and Magic DNS
 
-Four applies and one patch, in the order the Knative install guide uses: the CRDs, the core, Kourier as the network layer, and then the `default-domain` job, which is the guide's "Magic DNS (sslip.io)" option.
+Four applies and one patch, in the order the install guide uses: the CRDs, the core, Kourier as the
+network layer, and the `default-domain` job, the guide's "Magic DNS (sslip.io)" option.
 
 ```bash
 kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-crds.yaml
@@ -44,7 +53,9 @@ kubectl patch configmap/config-network -n knative-serving --type merge \
 kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-default-domain.yaml
 ```
 
-The trap: applying the CRDs and the core together leaves the core half-installed, because the API server has not published `caching.internal.knative.dev/v1alpha1` when the core asks for it. Applying the core a second time is the whole fix. (The exercise's screenshot shows a different failure, pods in `CrashLoopBackOff`; either way, read the message, not the colour.)
+The trap: applying the CRDs and the core together leaves the core half-installed: the API server has not
+published `caching.internal.knative.dev/v1alpha1` when the core asks for it. Applying the core again is the fix. (The exercise's screenshot shows a different failure, pods in `CrashLoopBackOff`; either way, read the
+message, not the colour.)
 
 ```console
 $ kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-core.yaml
@@ -56,7 +67,7 @@ mutatingwebhookconfiguration.admissionregistration.k8s.io/webhook.serving.knativ
 validatingwebhookconfiguration.admissionregistration.k8s.io/validation.webhook.serving.knative.dev configured
 ```
 
-All six pods are then ready, and the `default-domain` job is a `Completed` pod rather than a service:
+All six pods are then ready, and the `default-domain` job is a `Completed` pod, not a service:
 
 ```console
 $ kubectl -n knative-serving get pods
@@ -69,7 +80,7 @@ net-kourier-controller-5d74dfdd6f-hj2g9   1/1     Running     0          28m
 webhook-5cdb4c6879-wczc6                  1/1     Running     0          28m
 ```
 
-The domain comes from the ingress address, which is why Magic DNS works on a cluster with no DNS server of its own:
+The domain comes from the ingress address, so Magic DNS works on a cluster with no DNS server:
 
 ```console
 $ kubectl -n knative-serving logs job/default-domain | tail -1
@@ -82,9 +93,11 @@ kourier   LoadBalancer   10.43.37.122   172.21.0.3,172.21.0.4,172.21.0.5   80:31
 
 ## Step 2 — the app, written against the runtime contract
 
-Knative's runtime contract is short: stateless, configured from the environment, listening on the injected `PORT`, logging to stdout, leaving when asked. The app in `app/` is that contract in one file, plus a second route the autoscaling example needs.
+Knative's runtime contract is short: stateless, configured from the environment, listening on the injected
+`PORT`, logging to stdout, leaving when asked. The app in `app/` is that contract in one file, plus a route the
+autoscaling example needs.
 
-Knative resolves every image tag to a digest **against its registry** before creating a pod, so a bare `hello:5.6` means `docker.io/library/hello:5.6`, Docker Hub answers 401, and the revision never starts. Worth seeing once, in its own namespace so the real Service's numbering stays clean:
+Knative resolves every image tag to a digest **against its registry** before creating a pod, so a bare `hello:5.6` means `docker.io/library/hello:5.6`, Docker Hub answers 401, and the revision never starts. Worth seeing once, in its own namespace so the Service's numbering stays clean:
 
 `manifests/hello-bare-image.yaml`
 
@@ -113,11 +126,17 @@ kubectl -n trap get ksvc
 kubectl delete namespace trap
 ```
 
-![A terminal screenshot of the Step 2 trap from start to finish: creating the `trap` namespace, applying `manifests/hello-bare-image.yaml` with its securityContext `Warning:` line, `sleep 15`, the revision's `failed to resolve image to digest … 401 Unauthorized` message, `kubectl -n trap get ksvc` reporting `READY False` with reason `RevisionMissing`, and deleting the namespace](./assets/image.png)
+![A terminal screenshot of the Step 2 trap: creating `trap`, applying `manifests/hello-bare-image.yaml`
+with its securityContext `Warning:`, `sleep 15`, the revision's `failed to resolve image to digest … 401
+Unauthorized` message, `kubectl -n trap get ksvc` reporting `READY False` with reason `RevisionMissing`, and
+deleting the namespace](./assets/image.png)
 
-The `Warning:` about `securityContext` shows up on every apply here — Knative asking the manifest to be explicit about hardening, about Kubernetes' own defaults, so it is noise. With no Service at all, the jsonpath above prints nothing instead; `kubectl get revisions` is the form that says why: `No resources found in default namespace.`
+The `Warning:` about `securityContext` shows on every apply, Knative asking the manifest to be explicit about
+hardening against Kubernetes' defaults, so it is noise. With no Service, the jsonpath prints nothing;
+`kubectl get revisions` says why: `No resources found in default namespace.`
 
-The fix is the prefix Knative skips resolving for — `dev.local` — so the image is imported under that name and the manifest asks for that name:
+The fix is the prefix Knative skips resolving for, `dev.local`: the image is imported under that name and the
+manifest asks for that name:
 
 ```bash
 docker build -t hello:5.6 app
@@ -133,7 +152,7 @@ dev.local/hello           5.6                 76d7fe32255f2       32.5MB
 
 ## Step 3 — example 1: a Knative Service
 
-One object, and the platform writes the rest.
+One object; the platform writes the rest.
 
 `manifests/hello.yaml`
 
@@ -173,7 +192,8 @@ NAME    URL                                        LATESTCREATED   LATESTREADY  
 hello   http://hello.default.172.21.0.3.sslip.io   hello-00001     hello-00001   True
 ```
 
-What Knative created for that one object — Deployment, two Services, ReplicaSet, pod — none of it written by hand (names and hashes differ per run; the shape does not):
+What Knative created for that one object (Deployment, two Services, ReplicaSet, pod), none by hand
+(names and hashes differ per run; the shape does not):
 
 ```console
 $ kubectl get deploy,svc,rs,pods -l serving.knative.dev/service=hello
@@ -192,14 +212,14 @@ NAME                                          READY   STATUS    RESTARTS   AGE
 pod/hello-00001-deployment-6884596465-dxwnq   2/2     Running   0          9s
 ```
 
-The pod that runs a serverless app has two containers, and the second one is the subject of the previous exercise:
+The pod that runs a serverless app has two containers, the second being the previous exercise's subject:
 
 ```console
 $ kubectl get pods -l serving.knative.dev/revision=hello-00001 -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{range .spec.containers[*]}{.name}{" "}{end}{"\n"}{end}'
 hello-00001-deployment-b7469c96-w5xlh  user-container queue-proxy
 ```
 
-Calling it from the host uses the URL `kubectl get ksvc` reports as the `Host` header — the exercise's own trick, with the port the cluster was created with:
+Calling it from the host uses the URL `kubectl get ksvc` reports as the `Host` header (the exercise's trick), with the port the cluster was created with:
 
 ```console
 $ H=$(kubectl get ksvc hello -o jsonpath='{.status.url}' | sed 's|http://||')
@@ -213,11 +233,12 @@ $ kubectl logs -l serving.knative.dev/revision=hello-00001 -c user-container --t
 listening on 8080, TARGET=Knative 5.6, K_REVISION=hello-00001
 ```
 
-The last line is the contract in practice: `PORT` was injected, `TARGET` came from the manifest, and `K_REVISION` came from the platform, not from the app.
+The last line is the contract in practice: `PORT` was injected, `TARGET` came from the manifest, and
+`K_REVISION` came from the platform.
 
 ### Scale to zero
 
-No traffic means no pods at all, and the next request pays for starting one:
+No traffic means no pods, and the next request pays to start one:
 
 ```console
 $ kubectl get pods
@@ -235,14 +256,16 @@ $ curl -s -o /dev/null -w "%{http_code} in %{time_total}s\n" -H "Host: $H" http:
 200 in 0.004166s
 ```
 
-The first request is held by the activator while a pod starts; the second one goes straight to it. That 1.9 seconds is the cold start, and it is what Knative buys with "zero replicas when nobody is asking".
+The first request is held by the activator while a pod starts; the second goes straight to it. That 1.9
+seconds is the cold start Knative buys with "zero replicas when nobody asks".
 
-Reading logs in that state finds nothing, because there is no pod to read: `kubectl logs -l serving.knative.dev/revision=hello-00001 -c user-container --tail=1` answers `No resources found in default
+Reading logs in that state finds nothing: there is no pod to read. `kubectl logs -l serving.knative.dev/revision=hello-00001 -c user-container --tail=1` answers `No resources found in default
 namespace.` until a request wakes the revision.
 
 ## Step 4 — example 2: traffic splitting
 
-The second revision is made by changing the revision template — the same image, a different environment — and the `traffic` block decides how the requests divide.
+The second revision is made by changing the revision template (the same image, a different environment), and
+the `traffic` block decides how requests divide.
 
 `manifests/hello-split.yaml`
 
@@ -287,7 +310,8 @@ hello-00001  50%  latestRevision=false
 hello-00002  50%  latestRevision=false
 ```
 
-The second revision is a whole second set of objects: its own Deployment, two Services, ReplicaSet and pod — the Step 3 command again, now twice over (ages and hashes from the run that produced this lab):
+The second revision is a second set of objects: its own Deployment, two Services, ReplicaSet and pod, the Step
+3 command twice over (ages and hashes from this lab's run):
 
 ```console
 $ kubectl get deploy,svc,rs,pods -l serving.knative.dev/service=hello
@@ -311,7 +335,7 @@ pod/hello-00001-deployment-b7469c96-w5xlh     2/2     Running   0          33s
 pod/hello-00002-deployment-6f96c7fd5c-w9mvl   2/2     Running   0          12s
 ```
 
-Twenty requests, counted by the revision that answered them:
+Twenty requests, counted by the revision that answered:
 
 ```console
 $ H=$(kubectl get ksvc hello -o jsonpath='{.status.url}' | sed 's|http://||')
@@ -320,7 +344,7 @@ $ for i in $(seq 1 20); do curl -s -H "Host: $H" http://localhost:8081; done | s
      12 hello-00002
 ```
 
-The answers alternate, which is easier to read in a short sample than the count is:
+The answers alternate, easier to read in a short sample than the count:
 
 ```console
 $ H=$(kubectl get ksvc hello -o jsonpath='{.status.url}' | sed 's|http://||')
@@ -339,7 +363,8 @@ $ for i in $(seq 1 20); do curl -s -H "Host: $H" http://localhost:8081; done | s
      20 hello-00001
 ```
 
-Twenty requests landing on one revision is what a 10% share looks like when the sample is that small: the probability of seeing no `hello-00002` in twenty draws is still about one in eight.
+Twenty requests on one revision is what a 10% share looks like when the sample is that small: the chance of
+seeing no `hello-00002` in twenty draws is still about one in eight.
 
 ## Step 5 — example 3: autoscaling
 
@@ -370,7 +395,7 @@ spec:
               value: "autoscaling"
 ```
 
-A **second** Service on purpose — changing the revision template creates a revision, and the two revisions the split above uses are worth keeping untouched.
+A **second** Service on purpose: changing the revision template creates a revision, and the two revisions the split uses stay untouched.
 
 ```console
 $ kubectl apply -f manifests/hello-autoscale.yaml
@@ -417,7 +442,7 @@ $ kubectl apply -f manifests/load-generator.yaml
 job.batch/load created
 ```
 
-Six clients then call `/work?ms=300` for a minute, and the replica count is sampled while they run:
+Six clients then call `/work?ms=300` for a minute, the replica count sampled as they run:
 
 ```console
 $ for t in 10 20 30 40 50; do sleep 10; n=$(kubectl get pods -l serving.knative.dev/service=hello-autoscale --no-headers | grep -c Running); r=$(kubectl get revision -l serving.knative.dev/service=hello-autoscale -o jsonpath='{.items[0].status.actualReplicas}'); echo "t=${t}s  Running=$n  actualReplicas=$r"; done
@@ -428,9 +453,12 @@ t=40s  Running=9  actualReplicas=9
 t=50s  Running=9  actualReplicas=9
 ```
 
-Nine pods for six clients: the autoscaler follows requests *in flight*, not clients, and each client holds one 300 ms request open, which is what the queue-proxy reports as concurrency. The same six clients on `/`, where answers take milliseconds, barely move it — twelve clients there kept three pods, the same rule from the other side.
+Nine pods for six clients: the autoscaler follows requests *in flight*, not clients, and each client holds one
+300 ms request open, which the queue-proxy reports as concurrency. The same six clients on `/`, where answers
+take milliseconds, barely move it: twelve clients there kept three pods, the same rule from the other side.
 
-When the clients stop, the replicas go back to zero on their own — the Job reaches `6/6` after its minute and Knative does the rest (`kubectl delete job load` clears it out for a rerun):
+When the clients stop, the replicas go back to zero on their own: the Job reaches `6/6` after its minute and
+Knative does the rest (`kubectl delete job load` clears it for a rerun):
 
 ```console
 $ kubectl get revisions
@@ -442,8 +470,8 @@ hello-autoscale-00001   hello-autoscale   1            True             0       
 
 ## P.S.
 
-- A Knative Service is mostly a Deployment you did not write: the platform creates the Deployment, the Services, the public route, the queue-proxy sidecar and the autoscaler, and keeps the revision history.
-- Scale to zero is a cold start per revision: the first request after idle waits for a pod, the second does not. `minScale` keeps one warm instead.
-- Local images need `dev.local/` and `imagePullPolicy: IfNotPresent`: Knative resolves tags against a registry before Kubernetes looks in its own store.
+- A Knative Service is mostly a Deployment you did not write: the platform creates the Deployment, Services, public route, queue-proxy and autoscaler, and keeps the revision history.
+- Scale to zero is a cold start per revision: the first request after idle waits for a pod, the second does not. `minScale` keeps one warm.
+- Local images need `dev.local/` and `imagePullPolicy: IfNotPresent`: Knative resolves tags against a registry before Kubernetes looks in its store.
 - The revision template is the unit of change (environment, annotations, image); `traffic` is the only thing that should differ between two deploys of the same code.
 - The runtime contract is why this app would run on Cloud Run unchanged: stateless, env config, `PORT`, stdout, SIGTERM drain.

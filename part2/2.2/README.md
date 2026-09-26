@@ -19,13 +19,11 @@
           todo-backend (new service — in-memory todo store)
 ```
 
-Two applications now:
-
-- **todo-app** (from 1.13): serves the HTML page with the form and the
-  hourly image; it **no longer hardcodes todos** — it fetches them from
-  the new todo-backend service over HTTP and renders them.
-- **todo-backend** (new): `GET /todos` returns the list, `POST /todos`
-  adds a todo. Data lives in memory (a database comes later).
+- **todo-app** (from 1.13): serves the form + hourly image page and
+  **no longer hardcodes todos**; it fetches them from todo-backend over
+  HTTP and renders them.
+- **todo-backend** (new): `GET /todos` lists, `POST /todos` adds. Data
+  lives in memory (a database comes later).
 
 ## prerequisites
 
@@ -53,24 +51,24 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 ### `todo-backend/src/main.rs` (the new service)
 
 - In-memory store: `TodoStore { todos: Vec<Todo>, next_id: u64 }`
-  behind `Arc<Mutex<_>>` (shared state via axum `State`).
+  behind `Arc<Mutex<_>>` (axum `State`).
 - `GET /todos` → `Json<Vec<Todo>>` (clones the list).
-- `POST /todos` — body `{"title": "..."}`:
+- `POST /todos`, body `{"title": "..."}`:
   - trims the title, rejects empty or > 140 chars with `400`;
-  - otherwise assigns `id` from `next_id`, pushes, replies
-    `201 Created` with the created todo.
+  - else assigns `id` from `next_id`, pushes, replies `201 Created`
+    with the created todo.
 
 ### `todo-app/src/main.rs` (from 1.13, now talking to the backend)
 
-- `GET /` — same page as 1.13 (image + form + list) but the list is
-  **fetched over HTTP**: `reqwest::get("{TODO_BACKEND_URL}/todos")`,
-  then rendered server-side.
-- `POST /todos` — receives the HTML form (`content` field), validates
-  (empty / >140 → 400), forwards a JSON `{"title": ...}` to the
-  backend with a `reqwest` client, then `Redirect::to("/")` (303).
+- `GET /`: the 1.13 page (image + form + list), but the list is
+  **fetched over HTTP** via `reqwest::get("{TODO_BACKEND_URL}/todos")`
+  and rendered server-side.
+- `POST /todos`: validates the form's `content` field
+  (empty / >140 → 400), forwards JSON `{"title": ...}` to the backend
+  with a `reqwest` client, then `Redirect::to("/")` (303).
 - `/image` + `/api/health` unchanged from 1.12/1.13.
 - `TODO_BACKEND_URL` env var, default `http://todo-backend-svc:2345`
-  (the Service DNS name — pod-to-pod HTTP as in 2.1).
+  (the Service DNS name, pod-to-pod HTTP as in 2.1).
 
 verify locally:
 
@@ -96,7 +94,7 @@ curl -s -X POST localhost:3001/todos -d 'content=Buy milk' -w "%{http_code}\n"
 # 303 → refresh / → "Buy milk" is in the list
 ```
 
-**To stop the servers:** `Ctrl+C` in each foreground terminal, or
+**To stop the servers:** `Ctrl+C` in each terminal, or
 `pkill -f 'debug/todo-backend'; pkill -f 'debug/todo-app'`.
 
 ## Step 1 — Build and push both images
@@ -119,7 +117,7 @@ kubectl get pv,pvc
 # No resources found                       ← missing, continue below
 ```
 
-Prepare the node directory and apply:
+Prepare the node directory:
 
 ```bash
 docker exec k3d-mycluster-agent-0 mkdir -p /tmp/kube
@@ -182,13 +180,13 @@ kubectl get pods,svc
 ## P/S:
 
 1. **Splitting the project**: UI (todo-app) and data (todo-backend)
-   are now separate deployments; the UI calls the data service over
-   HTTP via a Service DNS name (2.1 pattern).
+   are separate deployments; the UI calls the data service over HTTP
+   via a Service DNS name (2.1 pattern).
 2. **In-memory state**: a `Mutex<Vec<Todo>>` is enough until a
-   database arrives — restarting the backend loses todos, and that's
-   expected at this point in the course.
+   database arrives. Restarting the backend loses todos, which is
+   expected at this stage.
 3. **Two different HTTP roles**: `GET` returns state, `POST` mutates
-   it (201 + the created resource); validation (≤140 chars) lives in
+   it (201 + the created resource). Validation (≤140 chars) lives in
    the backend as the single source of truth.
 4. **Cluster-internal services stay internal**: no Ingress for
-   todo-backend — only the frontend is reachable from the browser.
+   todo-backend; only the frontend is reachable from the browser.

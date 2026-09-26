@@ -5,15 +5,13 @@
 > Deploy **Ping-pong application** into GKE.
 > In this exercise use a **LoadBalancer** service to expose the service.
 
-This is the first lab on **Google Kubernetes Engine (GKE)** — a managed
-Kubernetes-as-a-service. Instead of a personal k3d cluster, we deploy the
-Ping-pong app to cloud infrastructure that Google actually provisions for
-us (nodes, load balancer, IPs).
+This is the first lab on **Google Kubernetes Engine (GKE)**, a managed
+Kubernetes-as-a-service. Instead of a local k3d cluster, the Ping-pong app
+goes to cloud infrastructure Google provisions (nodes, load balancer, IPs).
 
-**How to use this lab:** the only file provided is the app **source code**
-(`ping-pong/`). You hand-type the **Dockerfile**, the **deployment.yaml**
-and **service.yaml** below yourself (muscle memory — no copy-paste), then
-apply them to GKE.
+**How to use this lab:** only the app **source code** (`ping-pong/`) is
+provided; hand-type the **Dockerfile** and the two manifests, then apply
+them to GKE.
 
 ---
 
@@ -24,37 +22,35 @@ part3/3.1/
 └── ping-pong/    (src/ + Cargo.toml — provided)
 ```
 
-You create by hand: `ping-pong/Dockerfile`, `manifests/deployment.yaml`,
+Hand-create: `ping-pong/Dockerfile`, `manifests/deployment.yaml`,
 `manifests/service.yaml`.
 
 ---
 
 ## Knowledge: managed Kubernetes (Chapter 4)
 
-- **GKE** = Google's managed Kubernetes. You don't run/maintain the
-  control plane yourself — Google does. You only define the cluster
-  (nodes, machine type, count) and deploy workloads.
-- GKE **bills per node per hour** + extra for load balancers/PVs → it can
-  get expensive fast. **Delete the cluster when you don't need it.**
-- Deployment/app structure is the **same** Kubernetes you learned locally
+- **GKE** = Google's managed Kubernetes: Google runs the control plane;
+  you define the cluster (nodes, machine type, count) and deploy workloads.
+- GKE **bills per node per hour** + extra for load balancers/PVs, so it
+  gets expensive fast; **delete the cluster when idle.**
+- App structure is the **same** Kubernetes you learned locally
   (Deployment, Service, Ingress). What changes:
-  - A `LoadBalancer` Service in GKE asks Google to provision a real
-    cloud load balancer + external IP (vs. NodePort/LoadBalancer in k3d).
-  - Per-server disk for a PVC is auto-provisioned if you don't pin a
-    storage class.
-- **Managed ≠ free:** every node, disk, and load balancer you leave running
-  consumes your free credits.
+  - In GKE a `LoadBalancer` Service asks Google to provision a real cloud
+    load balancer + external IP (vs. NodePort in k3d).
+  - A PVC's disk is auto-provisioned unless you pin a storage class.
+- **Managed ≠ free:** idle nodes, disks, and load balancers still cost
+  credits.
 
 ---
 
 ## Prerequisites
 
 - gcloud SDK + `gke-gcloud-auth-plugin` installed
-- `gcloud auth login` (re-login if token expired)
+- `gcloud auth login` (re-login if the token expired)
 - project set: `dwk-gke-506208` (or your `dwk-gke-[id]`)
-- a GKE cluster in zone `europe-north1-b` (create it in Step 1)
+- a GKE cluster in zone `europe-north1-b` (Step 1)
 
-Run once to confirm everything is wired:
+Confirm the wiring:
 
 ```bash
 gcloud auth list
@@ -82,11 +78,11 @@ gcloud container clusters create dwk-cluster \
   --project=dwk-gke-[id]
 ```
 
-Wait for `STATUS: RUNNING` (takes a few minutes).
+Wait for `STATUS: RUNNING` (a few minutes).
 
 ### Then two required fixes (private clusters)
 
-**1) Allow kubectl to reach the master** — private clusters enable
+**1) Allow kubectl to reach the master:** private clusters enable
 master-authorized-networks by default, blocking your IP. Disable it:
 
 ```bash
@@ -94,7 +90,7 @@ gcloud container clusters update dwk-cluster --zone=europe-north1-b \
   --project=dwk-gke-[id] --no-enable-master-authorized-networks
 ```
 
-**2) Let nodes pull your image from Artifact Registry** — node SA needs the
+**2) Let nodes pull your image from Artifact Registry:** node SA needs the
 `artifactregistry.reader` role (missing = 403 `failed to authorize`):
 
 ```bash
@@ -104,7 +100,7 @@ gcloud projects add-iam-policy-binding dwk-gke-[id] \
 ```
 (Replace `PROJECTNUM` with your project number from `gcloud projects list`.)
 
-Verify kubectl connects + nodes ready:
+Verify kubectl + nodes ready:
 
 ```bash
 kubectl cluster-info
@@ -117,8 +113,8 @@ kubectl get nodes   # all 4 nodes Ready
 
 ### Build + push to Container Registry (gcr.io)
 
-Use the project's own registry so node pull works cleanly with private
-nodes (and you don't need an extra Docker Hub login for GKE):
+Use the project's own registry so private nodes pull cleanly (no extra
+Docker Hub login):
 
 ```bash
 cd ping-pong
@@ -148,7 +144,7 @@ kubectl get svc ping-pong-svc -w
 # ping-pong-svc  LoadBalancer  10.x.x.x      35.228.xx.xxx   80:3xxxx/TCP
 ```
 
-Once `EXTERNAL-IP` appears, open it in the browser:
+Once `EXTERNAL-IP` appears, open it:
 
 ```
 http://<EXTERNAL-IP>/pingpong
@@ -156,8 +152,8 @@ http://<EXTERNAL-IP>/pingpong
 
 ![alt text](./assets/image1.png)
 
-Refresh a few times → `pong 0`, `pong 1`, `pong 2`… (each request
-increments the counter). The LoadBalancer routes to a pod each time.
+Refresh a few times → `pong 0`, `pong 1`, `pong 2`… Each request
+increments the counter, and the LoadBalancer routes to a pod.
 
 ---
 
@@ -184,19 +180,19 @@ gcloud compute forwarding-rules list        # empty
 gcloud compute addresses list               # empty
 ```
 
-> Re-create the cluster with the Step 1 command when you resume (from part
-> 4 onwards). Deleting the cluster also deletes everything you deployed, so
-> re-apply the YAMLs on resume — the declarative approach makes this easy.
+> Re-create the cluster with the Step 1 command when you resume (part 4
+> onwards). Deleting the cluster also deletes everything you deployed, so
+> re-apply the YAMLs on resume; the declarative approach makes that easy.
 
 ## P/S:
 
-1. **GKE = managed K8s**: you don't maintain the control plane; you pay
-   per node/hour + LB.
+1. **GKE = managed K8s**: you don't run the control plane; you pay per
+   node/hour + LB.
 2. **Org policy here** denies external IPs on VMs → must use **private
-   nodes** (more setup than the course assumes — this README has the fixes).
-3. A **LoadBalancer** Service is the cloud-native way to expose an app to
-   the internet in GKE (vs NodePort in k3d) — Google provisions the LB + IP.
-4. Private nodes pull the image from **gcr.io** cleanly (no extra NAT/
-   Docker Hub needed); the node SA must have `artifactregistry.reader`.
-5. **Always delete the cluster when idle** — creds are limited. Deploying
-   again later is just re-applying the same YAMLs.
+   nodes** (more setup than the course assumes; this README has the fixes).
+3. A **LoadBalancer** Service is the cloud-native way to expose an app in
+   GKE (vs NodePort in k3d); Google provisions the LB + IP.
+4. Private nodes pull from **gcr.io** cleanly (no extra NAT or Docker Hub);
+   the node SA needs `artifactregistry.reader`.
+5. **Always delete the cluster when idle**; creds are limited. Resuming is
+   just re-applying the same YAMLs.

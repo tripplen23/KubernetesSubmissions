@@ -11,16 +11,16 @@
 
 ### 1. What "deployment pipeline" means (context for the whole chapter)
 
-Right now you deploy by hand: `kubectl apply ...`, then hope. A **deployment
-pipeline** automates the journey from *code pushed to git* to *running in
+Today you deploy by hand (`kubectl apply ...`) and hope. A **deployment
+pipeline** automates the trip from *code pushed to git* to *running in
 production*:
 
 ```
 git push  →  build image  →  push image to a registry  →  deploy to cluster
 ```
 
-Exercise 3.5 only covers the **deploy-by-hand done smartly** part
-(Kustomize). The full automation (GitHub Actions) comes in exercise 3.6.
+Exercise 3.5 covers only the **deploy-by-hand done smartly** part
+(Kustomize); full automation is 3.6.
 
 ### 2. Why Kustomize exists — the "lexical order" problem
 
@@ -30,14 +30,14 @@ If you have many manifests you can apply a whole folder:
 kubectl apply -f manifests/
 ```
 
-BUT kubernetes applies them in **lexical (alphabetical) order**, not in
-dependency order. So if `configmap.yaml` comes before the file that creates
-its namespace — or a deployment comes before the config map it references —
-you get errors. With 9 project files, applying them one-by-one in the right
-order is exactly the sort of thing humans get wrong.
+But kubernetes applies them in **lexical (alphabetical) order**, not
+dependency order: if `configmap.yaml` comes before the file that creates its
+namespace, or a deployment before its config map, you get errors. With 9
+project files, applying them in the right order is exactly the sort of thing
+humans get wrong.
 
-**Kustomize** fixes this. It is a tool for *configuration customization and
-ordering* — and it is **baked straight into kubectl** (no installation):
+**Kustomize** fixes this: *configuration customization and ordering*,
+**baked straight into kubectl**.
 
 | Command | Effect |
 |---|---|
@@ -46,7 +46,7 @@ ordering* — and it is **baked straight into kubectl** (no installation):
 
 ### 3. The `kustomization.yaml`
 
-A small file listing the manifests **in the order they must be applied**:
+A small file listing the manifests **in apply order**:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -58,19 +58,19 @@ resources:
 ```
 
 > ⚠️ The apiVersion is **`kustomize.config.k8s.io/v1beta1`**. A common
-> mistake is writing `config.kustomize.dev/v1beta1` (that's an older name)
-> — kubectl will refuse to read the file.
+> mistake is writing `config.kustomize.dev/v1beta1` (an older name);
+> kubectl will refuse to read the file.
 
-Kustomize is also the hook your pipeline needs: you can *override*
-values at apply time —
+Kustomize is also the hook your pipeline needs: *override* values at apply
+time:
 
 ```bash
 kustomize edit set namespace ${BRANCH_NAME}
 kustomize edit set image PROJECT/IMAGE=my-registry/image:tag
 ```
 
-It rewrites the built yaml just before applying. That's how one pipeline can
-deploy many branches/images without touching the manifests.
+It rewrites the built yaml just before applying, so one pipeline deploys many
+branches/images without touching the manifests.
 
 ---
 
@@ -143,9 +143,8 @@ resources:
 ```
 
 Order = dependency order: secrets/configmaps/PVC first (deployments rely on
-them by name), then the database, then the services, the app deployment and
-finally the cron job. Without Kustomize you'd apply these 9 files by hand in
-exactly this order.
+them by name), then database, services, app deployment, and the cron job.
+Without Kustomize you'd apply these 9 files by hand in this order.
 
 ---
 
@@ -155,8 +154,8 @@ exactly this order.
 
 ### Namespaces — make sure it exists
 
-Everything in the project lives in the `project` namespace. Kubernetes will
-not auto-create it, so:
+Everything lives in the `project` namespace, which Kubernetes will not
+auto-create:
 
 ```bash
 kubectl create namespace project
@@ -165,7 +164,7 @@ kubectl config set-context --current --namespace=project   # optional default
 ---
 
 
-Run from `part3/3.5/`, pointing kustomize at the `manifests/` directory:
+Run from `part3/3.5/`, pointing kustomize at `manifests/`:
 
 ```bash
 # 1) dry run: build the whole kustomization and look at it (nothing applied)
@@ -176,9 +175,9 @@ kubectl kustomize manifests/
 kubectl apply -k manifests/
 ```
 
-> `kubectl apply -k <dir>` — the `-k` flag does the kustomize processing.
+> `kubectl apply -k <dir>`: the `-k` flag does the kustomize processing.
 > There is **no `-f`** on this command (they are mutually exclusive). Using
-> `-k .` here would fail — there is no `kustomization.yaml` at the root.
+> `-k .` here would fail; there is no `kustomization.yaml` at the root.
 
 ```bash
 kubectl rollout status deploy/todo-app -n project
@@ -230,7 +229,7 @@ for img in todo-app:3.5 todo-backend:3.5 todo-cron:3.5 postgres:16; do
 done
 ```
 
-**Then the bit everyone forgets** — the PVCs left real disks behind:
+**The bit everyone forgets:** the PVCs left real disks behind:
 
 ```bash
 gcloud compute disks list --project=dwk-gke-506208
@@ -238,7 +237,7 @@ gcloud compute disks list --project=dwk-gke-506208
 gcloud compute disks delete pvc-<hash> --project=dwk-gke-506208 --zone=europe-north1-b
 ```
 
-Final check — everything must be `0`:
+Final check: everything must be `0`:
 
 ```bash
 gcloud container clusters list
@@ -253,16 +252,15 @@ gcloud compute disks list
 ## P/S:
 
 1. **Kustomize = declared application ORDER + value overrides**, built into
-   kubectl: `kubectl kustomize <dir>` (dry run) / `kubectl apply -k <dir>`
-   (apply).
-2. `apiVersion: kustomize.config.k8s.io/v1beta1` and a `resources:` list in
-   dependency order (secrets → configs → volumes → db → services → apps).
+   kubectl: `kubectl kustomize <dir>` (dry run) / `kubectl apply -k <dir>`.
+2. `apiVersion: kustomize.config.k8s.io/v1beta1` with a `resources:` list in
+   dependency order (secrets, configs, volumes, db, services, apps).
 3. GKE ≠ k3d: no `local-path` storage class (use `standard`), no Traefik
-   (ClusterIP + port-forward), PVCs cost real disks — **delete `pvc-*`
-   disks after cluster deletion**.
+   (ClusterIP + port-forward), and PVCs cost real disks; **delete `pvc-*`
+   disks after the cluster**.
 4. postgres initdb workaround: mount parent dir, set `PGDATA` subdir.
-5. `ReadWriteOnce` + `replicas: 1` → RollingUpdate is safe; scaling to 2+
-   replicas needs a multi-pod access mode (comes back in 3.6).
-6. **The project on GKE works end-to-end** — 201 through postgres proves
-   the full stack; request-logging `[req]`/`[reject]` still live.
-7. Clean up everything (cluster + 4 images + leftover disks) — credits!
+5. `ReadWriteOnce` + `replicas: 1` → RollingUpdate is safe; 2+ replicas
+   needs a multi-pod access mode (see 3.6).
+6. **The project on GKE works end-to-end**: a 201 through postgres proves the
+   full stack, and request-logging `[req]`/`[reject]` works.
+7. Clean up cluster, 4 images, and leftover disks; credits!

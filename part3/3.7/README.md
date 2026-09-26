@@ -1,14 +1,14 @@
 # Exercise 3.7 — The project, step 16: Separate environment for each branch
 
 > Continue in **the same repository** as 3.6. The pipeline already exists
-> (`.github/workflows/main.yaml`, building from `part3/3.6/*`). This lab
-> only **upgrades the Deploy step** so that *each branch gets its own
-> environment*. `main` keeps deploying to namespace `project`.
+> (`.github/workflows/main.yaml`, building from `part3/3.6/*`); this lab
+> only **upgrades the Deploy step** so *each branch gets its own
+> environment*, with `main` still on namespace `project`.
 
 ## Goal
 
-Extend the 3.6 pipeline: **every git branch deploys to a namespace named
-after the branch**; the `main` branch still deploys to `project`.
+Extend the 3.6 pipeline so **every git branch deploys to a namespace named
+after it**, while `main` stays on `project`.
 
 ```text
 feature branches            main
@@ -17,13 +17,13 @@ feature branches            main
 namespace <branch>       namespace project
 ```
 
-The course assumes branch names are valid namespace names (lowercase,
-no dots/slashes — e.g. `feat37`).
+Branch names must be valid namespace names (lowercase, no dots/slashes,
+e.g. `feat37`).
 
 ## Knowledge — the three namespace commands
 
-The whole trick is 3 small commands inside the Deploy step (from the
-course "Separate environment for each branch" section):
+The whole trick is 3 commands inside the Deploy step (course section
+"Separate environment for each branch"):
 
 ```bash
 kubectl create namespace "${BRANCH}" || true            # may not exist yet
@@ -31,16 +31,16 @@ kubectl config set-context --current --namespace="${BRANCH}"
 kustomize edit set namespace "${BRANCH}"
 ```
 
-- `|| true` — the namespace might already exist; don't let create fail the build.
-- `set-context --current --namespace` — everything `kubectl` does after
-  this (apply, rollout, get) targets that namespace.
-- `kustomize edit set namespace X` — adds `namespace: X` into
-  `kustomization.yaml`, which **overrides the hard-coded `namespace:
-  project` on every manifest** (verified: the kustomize namespace
-  transformer replaces the field, it does not merge; cluster-scoped kinds
-  like StorageClass are left alone).
+- `|| true`: the namespace might already exist, so don't let create fail the
+  build.
+- `set-context --current --namespace`: everything `kubectl` does after this
+  (apply, rollout, get) targets that namespace.
+- `kustomize edit set namespace X`: adds `namespace: X` into
+  `kustomization.yaml`, **overriding the hard-coded `namespace: project`**
+  on every manifest (verified: the transformer replaces the field rather
+  than merging; cluster-scoped kinds like StorageClass are left alone).
 
-The only branch that must NOT get a branch-named namespace is `main`.
+`main` must NOT get a branch-named namespace.
 
 ---
 
@@ -67,16 +67,16 @@ docker push gcr.io/dwk-gke-506208/postgres:16
 > If `my-repository` was deleted too, recreate it (the pipeline pushes
 > images there): `gcloud artifacts repositories create my-repository
 > --repository-format=docker --location=europe-north1 --project=dwk-gke-506208`
-> (and the 3 GCP-side secrets + WIF pool/provider are still alive — do not
-> recreate those, `undelete` is the fix if they ever show `DELETED`).
+> (the 3 GCP-side secrets + WIF pool/provider survive, so don't recreate
+> them; `undelete` is the fix if they show `DELETED`).
 
 ---
 
 ## Step 2 — Update the workflow (full file)
 
-My current `.github/workflows/main.yaml` (from 3.6) must become this —
-**only the Deploy step changed** (the namespace logic); every other step
-stays identical. Replace the file, then diff mentally against yours.
+My current `.github/workflows/main.yaml` (from 3.6) must become this:
+**only the Deploy step changed** (the namespace logic), every other step
+identical. Replace the file, then diff mentally against yours.
 
 ```yaml
 name: Release application
@@ -183,14 +183,14 @@ jobs:
 | (nothing) | `kubectl config set-context --current --namespace` — targets rest of the step |
 | (nothing) | `kustomize edit set namespace "$NAMESPACE"` — rewrites all manifests |
 
-> ⚠️ **Tag pushes must not deploy.** `on: push` also fires for git tags;
-> then `BRANCH` is the tag name and `kubectl create namespace "3.10"` dies
-> with *`The Namespace "3.10" is invalid: metadata.name: Invalid value:
-> "3.10": must not contain dots`* — the deploy step then fails on every
-> `Namespace "3.10" not found`. Restricting the trigger with
-> `push: branches: ['**']` (see the workflow above) keeps
-> `git push origin <tag>` from starting a deploy at all. That is why the
-> tag-push runs show up as red in the Actions tab while `main` is green.
+> ⚠️ **Tag pushes must not deploy.** `on: push` also fires for git tags,
+> and then `BRANCH` is the tag name, so `kubectl create namespace "3.10"`
+> dies with *`The Namespace "3.10" is invalid: metadata.name: Invalid value:
+> "3.10": must not contain dots`*, and every later step fails on
+> `Namespace "3.10" not found`. Restricting
+> the trigger to `push: branches: ['**']` (see the workflow) keeps
+> `git push origin <tag>` from starting a deploy at all; hence tag-push runs
+> show red while `main` is green.
 
 ---
 
@@ -203,8 +203,8 @@ echo "" >> part3/3.6/todo-app/src/main.rs    # or any real change
 git add -A && git commit -m "test: branch env for 3.7" && git push -u origin feat37
 ```
 
-The `on: push` trigger fires for the new branch → the pipeline now runs
-twice per push (main's run + branch's run). Watch the **branch** run:
+The `on: push` trigger fires for the new branch, so the pipeline runs twice
+per push. Watch the **branch** run:
 
 ```bash
 gh run list --branch feat37 --limit 1
@@ -235,16 +235,16 @@ kubectl port-forward -n feat37 svc/todo-app-svc 8082:3000 &
 curl -s -o /dev/null -w "GET / -> %{http_code}\n" http://localhost:8082/    # 200
 ```
 
-Each branch environment is a **full stack** (app + backend + postgres +
-cron + its own PVC) — postgres runs inside its own namespace, so
-environments are isolated from each other.
+Each branch environment is a **full stack** (app + backend + postgres + cron
++ its own PVC); postgres runs inside its own namespace, so environments stay
+isolated.
 
 ---
 
 ## Step 5 — Clean up (after submitting; keep cluster for 3.8!)
 
-3.8 (delete-branch → delete-env) will automate namespace cleanup — until
-then you delete the test environment by hand:
+3.8 (delete-branch → delete-env) will automate namespace cleanup; until
+then delete the test environment by hand:
 
 ```bash
 git push origin --delete feat37   # removes the branch (and its runs)
@@ -258,5 +258,5 @@ gcloud compute disks list --project=dwk-gke-506208   # any pvc-* → delete them
 ```
 
 > KEEP the WIF chain (workload identity pool `github-pool`, SA
-> `github-actions-sa`, the 3 GitHub secrets) — **3.8 reuses every bit of
-> it.** Only clean it after 3.8.
+> `github-actions-sa`, the 3 GitHub secrets); **3.8 reuses it all.** Only
+> clean it after 3.8.

@@ -1,24 +1,24 @@
 # Exercise 3.9 — DBaaS vs DIY (GKE features)
 
-> **This is a writing exercise, not a deployment one.** The course asks for
-> a pros/cons comparison of the two ways to run a database in a cloud
-> Kubernetes setup, written in the project README.
+> **This is a writing exercise, not a deployment one.** The course wants a
+> pros/cons comparison of the two ways to run a database in cloud Kubernetes,
+> written in the project README.
 
 ## The two solutions
 
 - **DBaaS — Database as a Service** (e.g. Google Cloud SQL):
-  a fully managed database instance rented from Google. The provider
-  provisions the server, runs the software, applies patches and takes
-  backups. The application connects over the network, through auth
-  (workload identity / service account), never touching storage directly.
+  a managed database instance rented from Google. The provider provisions the
+  server, runs and patches the software, and takes backups; the application
+  connects over the network through auth (workload identity / service
+  account), never touching storage.
 - **DIY — self-hosted in our own cluster** (what this project does):
-  our own `postgres:16` image running as a StatefulSet inside the GKE
-  cluster, with a PersistentVolumeClaim; GKE provisions a PersistentVolume
-  (disk) under the hood and the Postgres data lives on it.
+  our own `postgres:16` image running as a StatefulSet in the GKE cluster,
+  with a PersistentVolumeClaim; GKE provisions the underlying
+  PersistentVolume (disk) where the data lives.
 
-Both are widely used — the course says so at the "intersection". The rest
-of this README compares them on the dimensions the exercise names:
-**initialization work, initialization cost, maintenance, and backups.**
+Both are widely used (the course says so at the "intersection"). The rest
+uses the exercise's dimensions: **initialization work, initialization cost,
+maintenance, backups.**
 
 ---
 
@@ -67,19 +67,17 @@ of this README compares them on the dimensions the exercise names:
 
 ## Summary
 
-- **DBaaS wins** when: you want ops-not-included-and-proud, you value
-  turnkey backups and replication more than the extra bill, or your
-  team has no one who wants to be a Postgres DBA on the side.
-- **DIY wins** when: the cluster already exists (marginal cost ≈ 0), you
-  need full control over versions/extensions/tuning, or you want to
-  avoid another vendor dependency (Google Cloud SQL is a lock-in by
-  design).
-- **The honest middle**: hybrid is common in production — app containers
-  in the cluster, database rented as DBaaS — precisely because the
-  backup/HA story is the expensive, risky part.
+- **DBaaS wins** when you want ops-not-included, value turnkey backups and
+  replication over the extra bill, or have no one to run the DBA.
+- **DIY wins** when the cluster already exists (marginal cost ≈ 0), you need
+  full control over versions/extensions/tuning, or you want to avoid another
+  vendor dependency (Cloud SQL is lock-in by design).
+- **The honest middle**: production usually runs a hybrid, app containers in
+  the cluster and the database rented as DBaaS, because backup/HA is the
+  expensive, risky part.
 
-**In this project we went DIY** (Postgres StatefulSet + PVC since
-part 2), because the course cluster is already paid for and an extra
-instance bill would be silly. The trade-off is exactly the one in the
-table: no automatic backups yet — that gap is what **exercise 3.10**
-closes (a CronJob dumping the todo database to Google Object Storage).
+**In this project we went DIY** (Postgres StatefulSet + PVC since part 2)
+because the course cluster is already paid for and an extra instance bill is
+silly. The trade-off is the one in the table: no automatic backups yet, and
+that gap is what **exercise 3.10** closes (a CronJob dumping the todo database
+to Google Object Storage).

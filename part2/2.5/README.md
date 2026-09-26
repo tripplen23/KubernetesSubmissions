@@ -22,15 +22,15 @@
 > Ping / Pongs: 3
 > ```
 
-This exercise introduces **ConfigMaps** — one of Kubernetes' two
+This exercise introduces **ConfigMaps**, one of Kubernetes' two
 configuration resources (the other is Secrets). Unlike 2.3/2.4, the
-**code changes**: the log-output reader must now also print the contents
-of a file (`information.txt`) mounted from a ConfigMap volume, and an
-env variable (`MESSAGE`) injected from the same ConfigMap.
+**code changes**: the log-output reader must print a file
+(`information.txt`) from a ConfigMap volume and an env variable
+(`MESSAGE`) from the same ConfigMap.
 
 ## Concepts covered
 
-Read these two pages — they answer every "how" below:
+These two pages answer every "how" below:
 
 - <https://kubernetes.io/docs/concepts/configuration/configmap/>
 - <https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/>
@@ -47,9 +47,8 @@ Read these two pages — they answer every "how" below:
 
 ## Step 1: build + push log-output
 
-**Only `log-output` changes** (the reader prints the two new lines).
-**`ping-pong` is unchanged** — reuse image `tripplen63/ping-pong:2.1`
-which already pushed in exercise 2.1.
+**Only `log-output` changes** (the reader prints the two new lines);
+**`ping-pong` is unchanged**, so reuse `tripplen63/ping-pong:2.1` from 2.1.
 
 ```bash
 cd log-output
@@ -91,7 +90,7 @@ curl -s http://localhost:8081/log
 
 ## Step 3 — Prove ConfigMap behaviour (concept check)
 
-Two experiments to internalise the docs' two key facts:
+Two experiments for the docs' key facts:
 
 **A. Editing a ConfigMap does NOT update env vars** (needs restart):
 
@@ -110,9 +109,8 @@ curl -s http://localhost:8081/log | grep "env variable"
 # env variable: MESSAGE=changed       ← now updated
 ```
 
-> Revert MESSAGE back to `hello world` afterwards with
-> `kubectl edit configmap ...` + another `rollout restart` (or re-apply
-> `configmap.yaml`).
+> Revert MESSAGE to `hello world` afterwards (`kubectl edit configmap ...`
+> + `rollout restart`, or re-apply `configmap.yaml`).
 
 **B. Editing a ConfigMap DOES update mounted files** (eventually):
 
@@ -126,7 +124,7 @@ curl -s http://localhost:8081/log | grep "file content"
 ```
 
 > Env vars are read once at container start; files are watched and
-> synced into the volume. That asymmetry is the core ConfigMap lesson.
+> synced into the volume. That is the core lesson.
 
 ## Step 4 — Clean up
 
@@ -138,11 +136,11 @@ kubectl get all,configmap -n exercises
 
 ## P/S:
 
-1. **ConfigMap = plain configuration** (files + env vars) scoped to a
-   namespace; Secrets are for sensitive data (base64).
+1. **ConfigMap = plain configuration** (files + env vars), namespaced;
+   Secrets hold sensitive data (base64).
 2. **Two injection paths**: env vars (`configMapKeyRef` / `envFrom`) and
    files (a `configMap` volume mounted into the pod).
-3. **The env-vs-file asymmetry**: editing a ConfigMap updates mounted
-   files automatically, but env vars only change on pod restart.
+3. **Env vars vs files**: editing a ConfigMap updates mounted files
+   automatically, but env vars only change on a pod restart.
 4. **ConfigMap + namespace**: the ConfigMap must live in the same
-   namespace as the pod that consumes it.
+   namespace as the pod consuming it.

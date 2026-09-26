@@ -2,13 +2,15 @@
 
 The exercise: make the **Ping pong** service of the Log Output app run serverless.
 
-Log Output stays what it is — a Deployment with a writer and a reader over a shared `emptyDir` — but Ping pong becomes a **Knative Service**. Knative then owns its Deployment, Service, ReplicaSet and pod, starts a pod when someone calls it, and stops it when nobody does.
+Log Output stays a Deployment with a writer and a reader over a shared `emptyDir`; Ping pong becomes a **Knative
+Service**. Knative then owns its Deployment, Service, ReplicaSet and pod, starts a pod when someone calls it, and
+stops it when nobody does.
 
 Platform: Knative Serving **v1.23.0** on Kubernetes **v1.34.1** (k3d).
 
 ## Step 0 — the platform
 
-This is exercise 5.6's territory: the cluster and Knative Serving. If you already have the `knative` cluster from 5.6 with Serving installed, skip to Step 1. Otherwise, the short version (details, and the trap in installing the core, are in the 5.6 lab):
+This is exercise 5.6's territory: the cluster and Knative Serving. If the `knative` cluster from 5.6 already has Serving installed, skip to Step 1. Otherwise, the short version (details, and the trap in installing the core, are in the 5.6 lab):
 
 ```bash
 $ k3d cluster create knative --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0" --image rancher/k3s:v1.34.1-k3s1
@@ -20,11 +22,13 @@ $ kubectl apply -f https://github.com/knative/serving/releases/download/knative-
 $ kubectl -n knative-serving logs job/default-domain --tail=1
 ```
 
-Apply `serving-core.yaml` a second time if the first one leaves pods crashing: the CRDs need a moment to be published, and the core asks for one of them while applying.
+Apply `serving-core.yaml` again if the first leaves pods crashing: the CRDs need a moment to be
+published, and the core asks for one while applying.
 
-The `ingress-class` value is the **full** class, `kourier.ingress.networking.knative.dev` — not `kourier`. With the short form, the Routes carry a class the Kourier controller does not answer, and it reconciles nothing at all while logging no error: `kubectl get ksvc` sits at `READY Unknown / IngressNotConfigured` even though the app behind it is healthy. There is a section on this at the end, with the receipts.
+The `ingress-class` value must be the **full** `kourier.ingress.networking.knative.dev`, not `kourier`. The short form leaves the Kourier controller silent, logging no error, and `kubectl get ksvc` sits at `READY Unknown / IngressNotConfigured` while the app is healthy. The end of this file has the receipts.
 
-The `default-domain` job is the guide's Magic DNS option: it writes the cluster's ingress IP into `config-domain`, and that is where the `sslip.io` in every URL below comes from. Its last log line says what it did:
+The `default-domain` job is the guide's Magic DNS option: it writes the cluster's ingress IP into
+`config-domain`, the source of the `sslip.io` in every URL below. Its last log line says what it did:
 
 ```console
 $ kubectl -n knative-serving logs job/default-domain --tail=1
@@ -33,7 +37,8 @@ $ kubectl -n knative-serving logs job/default-domain --tail=1
 
 ## Step 1 — two images
 
-Both applications keep the runtime contract Knative wants: they read `PORT`, log to stdout, and the port is the only thing they take from the environment. Build and hand both images to the cluster:
+Both applications keep the runtime contract Knative wants: they read `PORT` and log to stdout, and the port is
+the only thing they take from the environment. Build and hand both images to the cluster:
 
 ```bash
 $ cd part5/5.7
@@ -52,7 +57,7 @@ INFO[0013] Successfully imported image(s)
 INFO[0013] Successfully imported 2 image(s) into 1 cluster(s)
 ```
 
-The Dockerfile is the same for both, and it is the reason `Cargo.lock` matters:
+The Dockerfile is the same for both, and it is why `Cargo.lock` matters:
 
 ```dockerfile
 FROM rust:1.85-slim AS builder
@@ -68,7 +73,9 @@ EXPOSE 3000
 CMD ["/usr/local/bin/ping-pong"]
 ```
 
-`COPY Cargo.lock*` does not fail when there is no lock file — it just copies nothing, and cargo then resolves the dependencies from scratch, which can pick versions the pinned compiler cannot build. Both applications here ship their lock files, so the two builds above succeeded; the block below is what the first attempt looked like before `log-output/Cargo.lock` was put in place. You can reproduce it by moving the lock out of the way:
+`COPY Cargo.lock*` does not fail on a missing lock file: it copies nothing, and cargo resolves dependencies from scratch, which can pick versions the pinned compiler cannot build. Both applications ship their lock files,
+so the builds above succeeded; the block below is the first attempt before `log-output/Cargo.lock` was added.
+Reproduce it by moving the lock away:
 
 ```console
 $ mv log-output/Cargo.lock /tmp/ && docker build -t dev.local/log-output:5.7 log-output/
@@ -84,13 +91,14 @@ $ mv /tmp/Cargo.lock log-output/Cargo.lock
 $ docker build -t dev.local/log-output:5.7 log-output/   # and it builds again
 ```
 
-It is worth knowing because the failure is about a dependency you never chose: nothing in the Dockerfile or the `Cargo.toml` says `icu`.
+The failure is about a dependency you never chose: nothing in the Dockerfile or the `Cargo.toml` says `icu`.
 
-Log Output's Dockerfile is the same file with one word changed: the binary is `log-output`, so both the `COPY --from` line and `CMD` name it. Everything else — base images, `EXPOSE 3000`, the lock line — is identical.
+Log Output's Dockerfile is the same file with one word changed: the binary is `log-output`, so both `COPY --from` and `CMD` name it. Everything else (base images, `EXPOSE 3000`, lock line) is identical.
 
 ## Step 2 — the namespace, then Log Output
 
-The namespace goes first and on its own. Applying the whole directory in one command means the API server may still not have the namespace when the next file arrives:
+The namespace goes first and on its own. Applying the whole directory at once means the API server may
+not have the namespace yet when the next file arrives:
 
 ```console
 $ kubectl --context k3d-knative apply -f manifests/namespace.yaml
@@ -111,9 +119,9 @@ Warning: Kubernetes default value is insecure, Knative may default this to secur
 service.serving.knative.dev/pingpong created
 ```
 
-Nothing is broken there — re-applying works — but the receipts below are from the two-step order.
+Nothing is broken there (re-applying works), but the receipts are from the two-step order.
 
-The namespace is just a namespace this time (no `istio.io/dataplane-mode` label; there is no mesh in this cluster):
+The namespace is just a namespace this time (no `istio.io/dataplane-mode` label; this cluster has no mesh):
 
 ```yaml
 apiVersion: v1
@@ -122,7 +130,7 @@ metadata:
   name: exercises
 ```
 
-The ConfigMap is the same information the Log Output app has shown since part 2:
+The ConfigMap is the information the app has shown since part 2:
 
 ```yaml
 apiVersion: v1
@@ -136,7 +144,8 @@ data:
   MESSAGE: hello world
 ```
 
-And Log Output itself — unchanged except for one line: `PINGS_URL` now names the Knative Service. Its two containers are still ordinary containers in an ordinary Deployment.
+And Log Output itself, unchanged except for one line: `PINGS_URL` now names the Knative Service. Its two
+containers are still ordinary, in an ordinary Deployment.
 
 ```yaml
 apiVersion: apps/v1
@@ -263,16 +272,21 @@ log-output-5956dc699f-vc75m                 2/2     Running   0          5s
 pingpong-00001-deployment-b698c585b-l6dkg   2/2     Running   0          18s
 ```
 
-That second pod is only there for about a minute. Nothing has called ping-pong yet, so the autoscaler takes it back to zero on its own: run the same command a little later and you will see `log-output` alone, because the receipt above was taken seconds after the apply. That is not a broken step — `kubectl get revisions -n exercises` still lists
-`pingpong-00001`, and any request brings a pod back. Step 6 measures exactly this; if you want to see both pods here, run the command right after the apply or wake the revision first with the curl in Step 4.
+That second pod lasts about a minute. Nothing has called ping-pong, so the autoscaler takes it back to zero on
+its own: run the command a little later and you see `log-output` alone, because the receipt was taken seconds
+after the apply. That is not a broken step; `kubectl get revisions -n exercises` still lists `pingpong-00001`,
+and any request brings a pod back. Step 6 measures exactly this; to see both pods, run the command right after the
+apply or wake the revision with the curl in Step 4.
 
-Two things to read there. The app has no `PORT` in the manifest and no `containerPort`: Knative injects `PORT` and the app already reads it, which is the runtime contract doing its job. And the pod has two containers — `user-container` is the Rust binary, `queue-proxy` is Knative's, and the URL it printed is the one the ingress answering.
+Two things to read there. The app has no `PORT` and no `containerPort`: Knative injects `PORT`
+and the app reads it, the runtime contract working. And the pod's two containers: `user-container` is the Rust
+binary, `queue-proxy` is Knative's, and the URL it printed is the one the ingress answers.
 
-The `Warning:` is Knative asking the manifest to be explicit about hardening; the values it lists are Kubernetes' own defaults, so it is noise here.
+The `Warning:` is Knative asking the manifest to be explicit about hardening; the values it lists are Kubernetes' defaults, so it is noise.
 
 ## Step 4 — Log Output calls it
 
-What Knative created for that one object, and what the FQDN in `PINGS_URL` actually points at:
+What Knative created for that one object, and what the FQDN in `PINGS_URL` points at:
 
 ```console
 $ kubectl --context k3d-knative get deploy,svc,rs -n exercises
@@ -291,9 +305,10 @@ replicaset.apps/log-output-5956dc699f                 1         1         1     
 replicaset.apps/pingpong-00001-deployment-b698c585b   0         0         0       5m24s
 ```
 
-Note `service/pingpong`: it is an **ExternalName** pointing at `kourier-internal` in the `kourier-system` namespace. The name your app resolves is not a pod address any more — it is Knative's ingress. That matters in the next step.
+Note `service/pingpong`: an **ExternalName** pointing at `kourier-internal` in `kourier-system`.
+The name your app resolves is not a pod address any more; it is Knative's ingress. That matters next.
 
-Put a temporary pod in the namespace and call it. The pod is only a client; nothing depends on its name:
+Put a temporary pod in the namespace and call it. It is only a client; nothing depends on its name:
 
 ```bash
 $ kubectl --context k3d-knative run curl57 -n exercises --restart=Never --image=curlimages/curl --command -- sh -c 'for i in 1 2 3; do curl -s http://pingpong.exercises.svc.cluster.local/pingpong; echo; done; echo "--- /pongs via the FQDN:"; curl -s http://pingpong.exercises.svc.cluster.local/pongs; echo; echo "--- plain Service name, http://pingpong/pongs:"; curl -s -o /dev/null -w "HTTP %{http_code}\n" http://pingpong/pongs; echo "--- log-output page:"; curl -s http://log-output-svc:3000/'
@@ -319,13 +334,15 @@ env variable: MESSAGE=hello world
 Ping / Pongs: 3
 ```
 
-The three `pong` lines are the three calls reaching the pod that Knative started for them. `Ping / Pongs: 3` is Log Output reading the same counter over the FQDN — Log Output is a Deployment that was already running, and the serverless backend answered it like any other client. Its page still shows everything from part 2: the ConfigMap file, the `MESSAGE` variable, the writer's timestamp lines.
+The three `pong` lines are the calls reaching the pod Knative started for them. `Ping / Pongs: 3` is Log Output
+reading the same counter over the FQDN: it was already running, and the serverless backend answered it like any
+other client. Its page still shows everything from part 2: the ConfigMap file, `MESSAGE`, the writer's timestamp lines.
 
-The middle line is the exercise's tip, and it is the step that is easy to skip.
+The middle line is the exercise's tip, and easy to skip.
 
 ## Step 5 — the address that does not work
 
-`http://pingpong/pongs` — the plain Service name that part 2 used — is a **404**, and the response says who answered:
+`http://pingpong/pongs` (the plain Service name part 2 used) is a **404**, and the response says who answered:
 
 ```bash
 $ kubectl --context k3d-knative run curl57b -n exercises --restart=Never --image=curlimages/curl --command -- sh -c 'curl -s -i http://pingpong/pongs | head -7'
@@ -340,10 +357,14 @@ server: envoy
 content-length: 0
 ```
 
-`server: envoy` is Kourier — the ingress answered, not the app. The reason is the ExternalName you saw in Step 4:
-the Service name resolves to the ingress, and the ingress picks a route by the **Host** header. The request went out with `Host: pingpong`, which is not a Host Knative knows, so nothing matched and it answered 404. The fully qualified name `pingpong.exercises.svc.cluster.local` is a Host it does know — that is what "this avoids host-routing issues in the Knative setup" means in the exercise.
+`server: envoy` is Kourier: the ingress answered, not the app. The reason is the ExternalName from Step 4. The
+Service name resolves to the ingress, and the ingress picks a route by the **Host** header. The request went out
+with `Host: pingpong`, a Host Knative does not know, so nothing matched and it answered 404. The fully qualified
+name `pingpong.exercises.svc.cluster.local` is a Host it knows, which is what "this avoids host-routing issues in
+the Knative setup" means in the exercise.
 
-The same difference shows from the host machine. With the Host header that matches the Knative Service, the loadbalancer on port 8081 is enough; without it, the same 404 as above:
+The same difference shows from the host. With the Host header matching the Knative Service, the
+loadbalancer on port 8081 is enough; without it, the same 404 as above:
 
 ```bash
 $ curl -s -H "Host: pingpong.exercises.172.21.0.3.sslip.io" http://localhost:8081/pingpong
@@ -357,11 +378,13 @@ pong 0
 no Host header: HTTP 404
 ```
 
-The hostname comes from `kubectl get ksvc` (the exercise's own note) and the IP part is your cluster's; the same sentence covers the exercise's optional URLRewrite tip, which is for a cluster that has a Gateway in front — this one uses Kourier, so the Host header is how you address it.
+The hostname comes from `kubectl get ksvc` (the exercise's own note); the IP part is your cluster's. The same
+sentence covers the exercise's optional URLRewrite tip, which is for a cluster with a Gateway in front. This one
+uses Kourier, so the Host header is how you address it.
 
 ## Step 6 — back to zero
 
-Stop calling it and wait. Nothing is deployed differently for this; it is the `minScale: "0"` annotation and the autoscaler's own idle timer.
+Stop calling it and wait. Nothing is deployed differently; it is the `minScale: "0"` annotation and the autoscaler's idle timer.
 
 ```bash
 $ sleep 150
@@ -381,9 +404,10 @@ NAME             CONFIG NAME   GENERATION   READY   REASON   ACTUAL REPLICAS   D
 pingpong-00001   pingpong      1            True             0                 0
 ```
 
-The revision is still there — it is the address and the History, not a running thing — but `ACTUAL REPLICAS` is 0, the Deployment is `0/0`, and the pod is on its way out. Only Log Output, an ordinary Deployment, stays up.
+The revision is still there (the address and the History, not a running thing), but `ACTUAL REPLICAS` is
+0, the Deployment is `0/0`, and the pod is on its way out. Only Log Output, an ordinary Deployment, stays up.
 
-Then call it again and watch what comes back. The first request pays for the pod; the counter, which lives in the pod's memory, does not come back with it:
+Then call it again and watch what comes back. The first request pays for the pod; the counter, in pod memory, does not come back with it:
 
 ```bash
 $ kubectl --context k3d-knative run curl57c -n exercises --restart=Never --image=curlimages/curl --command -- sh -c 'curl -s -w "  cold: %{time_total}s\n" -o /dev/null http://pingpong.exercises.svc.cluster.local/pingpong; echo -n "  counter after cold: "; curl -s http://pingpong.exercises.svc.cluster.local/pongs; echo; curl -s -w "  warm: %{time_total}s\n" -o /dev/null http://pingpong.exercises.svc.cluster.local/pingpong'
@@ -403,16 +427,22 @@ $ kubectl --context k3d-knative get revisions -n exercises
 pingpong-00001   pingpong   1     True         1     1
 ```
 
-`counter after cold: 1` is the number after that one `/pingpong` call — it was 3 in Step 4, and the pod that held that 3 is gone. Ping pong satisfies Knative's contract in the ways that matter (stateless from the platform's point of view, `PORT`, stdout) but its whole *content* is one counter in memory, and a counter in memory is state.
-That is what serverless costs you: 3.2 seconds when someone arrives after a quiet spell, 0.03 seconds when the pod is warm, and your state gone with the pod. Real ping pongs live in a database for the same reason.
+`counter after cold: 1` is the number after that one `/pingpong` call: it was 3 in Step 4, and the pod holding that 3 is gone. Ping pong satisfies Knative's contract in the ways that matter (stateless from the platform's
+point of view, `PORT`, stdout), but its whole *content* is one counter in memory, and a counter in memory is
+state. That is what serverless costs you: 3.2 seconds when someone arrives after a quiet spell, 0.03 seconds when
+the pod is warm, and your state gone with the pod. Real ping pongs live in a database for the same reason.
 
 (The timeout numbers are from the pod's own clock and include the whole HTTP round trip; they move with the machine, the order of magnitude does not.)
 
 ## When the ingress does not come up
 
-Two ways the platform can look broken while your own manifests are fine. Both were hit while writing this lab. They share a first symptom: `kubectl get ksvc` shows `READY Unknown` with reason `IngressNotConfigured`, while `ConfigurationsReady` is `True` — the app, its Deployment and its pods are all healthy and only the routing part is missing.
+Two ways the platform can look broken while your manifests are fine, both hit while writing this lab. The shared
+first symptom: `kubectl get ksvc` shows `READY Unknown` with reason `IngressNotConfigured` while
+`ConfigurationsReady` is `True`, so the app, its Deployment and pods are healthy and only routing is missing.
 
-**The ingress class is not the one Kourier answers.** The class in `config-network` has to be the full `kourier.ingress.networking.knative.dev`. With the short `kourier`, the controller stays silent in a way that looks like a broken cluster:
+**The ingress class is not the one Kourier answers.** The class in `config-network` has to be the full
+`kourier.ingress.networking.knative.dev`. With the short `kourier`, the controller stays silent and looks like a
+broken cluster:
 
 ```console
 $ kubectl -n knative-serving get configmap config-network -o jsonpath='{.data.ingress-class}'
@@ -428,7 +458,8 @@ $ kubectl logs -n knative-serving -l app=net-kourier-controller --tail=3
 ... "message":"Successfully acquired lease" ...
 ```
 
-No error, no reconcile, and the URL has lost its `sslip.io` part as well, because a Route that is not exposed falls back to the cluster-local domain. Fixing the value is enough — the controller picks the existing Ingress up on its
+No error, no reconcile, and the URL has lost its `sslip.io` part too, because a Route that is not exposed falls
+back to the cluster-local domain. Fixing the value is enough: the controller picks the existing Ingress up on its
 own:
 
 ```console
@@ -443,7 +474,8 @@ $ kubectl logs -n knative-serving -l app=net-kourier-controller --tail=1
 ... "logger":"net-kourier-controller" ... "message":"Reconcile succeeded" ...
 ```
 
-**A URL that keeps the cluster-local form.** If `config-network` is right and the URL is still `...svc.cluster.local`, the `default-domain` job never wrote the domain. Its log shows only a client-config warning in that case:
+**A URL that keeps the cluster-local form.** If `config-network` is right and the URL is still
+`...svc.cluster.local`, the `default-domain` job never wrote the domain; its log shows only a client-config warning:
 
 ```console
 $ kubectl -n knative-serving logs job/default-domain --tail=1
@@ -469,15 +501,13 @@ $ kubectl --context k3d-knative delete namespace exercises
 
 ## P.S.
 
-- The exercise is one line of YAML and one line of `PINGS_URL`, and both are about the same thing: serverless puts
-  an ingress in front of your app, and an ingress routes by Host, so the address you have used since part 2 stops
-  being an address.
-- A Knative Service is a Deployment you did not write — Deployment, two Services, ReplicaSet, pod, queue-proxy,
-  autoscaler — and a revision history on top. The revision is the unit of change; every edit to the template makes
+- The exercise is one line of YAML and one line of `PINGS_URL`, and both say the same thing: serverless puts an
+  ingress in front of your app, and an ingress routes by Host, so the address you have used since part 2 is no longer one.
+- A Knative Service is a Deployment you did not write (Deployment, two Services, ReplicaSet, pod, queue-proxy,
+  autoscaler) with a revision history on top. The revision is the unit of change; every edit to the template makes
   a new one.
-- Scale to zero is a cold start per revision, and the state in the pod goes with it. `minScale: "1"` (or an
-  external store) is how you refuse one of those.
+- Scale to zero is a cold start per revision, and the state in the pod goes with it. `minScale: "1"` (or an external store) refuses that.
 - Local images need the `dev.local/` prefix and `imagePullPolicy: IfNotPresent`, and a Rust build needs its
-  `Cargo.lock` — a missing lock is not an error at build time, it is a different dependency set.
+  `Cargo.lock`: a missing lock is not a build error, it is a different dependency set.
 - Nothing in the apps changed to become serverless. No new flag, no SDK, no framework: the contract is
   environment variables plus stdout, and both apps already followed it.

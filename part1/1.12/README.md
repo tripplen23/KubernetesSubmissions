@@ -22,7 +22,7 @@
 > as well, for testing purposes.
 
 In short: the todo-app project (1.8) gains a **random picture that
-changes every 10 minutes** — fetched once from Lorem Picsum, then
+changes every 10 minutes**, fetched once from Lorem Picsum, then
 served from a cache file on a **PersistentVolume** so the API isn't
 called on every request and the image survives container crashes. A
 `/shutdown` endpoint lets you kill the container on purpose to test
@@ -30,7 +30,7 @@ that.
 
 ## What you should have before starting
 
-**Check 1 — k3d cluster with the right port mapping:**
+**Check 1: k3d cluster + port mapping:**
 
 ```bash
 k3d cluster list
@@ -44,7 +44,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -63,10 +63,10 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
    - No file / expired → download `https://picsum.photos/1200`,
      write it to the PersistentVolume (`/usr/src/app/files/image.jpg`),
      serve it. The next 10 minutes of requests are served from disk.
-3. `GET /shutdown` → `std::process::exit(0)` — kills the container so
-   you can verify the image is still there when the pod comes back.
+3. `GET /shutdown` → `std::process::exit(0)`, killing the container
+   so you can verify the image is still there when the pod comes back.
 4. Image file lives on a PV (mounted at `/usr/src/app/files`), so
-   container/pod restarts don't lose it — and the Lorem Picsum API is
+   container/pod restarts don't lose it, and the Lorem Picsum API is
    only called once every 10 minutes.
 
 ## Source code (`src/main.rs`)
@@ -89,7 +89,7 @@ ls -la /tmp/1.12-share/image.jpg                       # file survives
 
 **To stop the server:** foreground → `Ctrl+C`; background →
 `pkill -f todo-app` or `fuser -k 3001/tcp`. (Or just
-`curl localhost:3001/shutdown` — that's the exercise's whole point!)
+`curl localhost:3001/shutdown`.)
 
 ## Step 1 — Prepare the node directory for the local PV
 
@@ -118,7 +118,7 @@ kubectl get pvc
 
 > if the PVC from 1.11 still exists with the same
 > name, `kubectl apply` reports `unchanged` and it stays Bound to the
-> same PV — that's fine, the volume is reusable.
+> same PV. That's fine, the volume is reusable.
 
 ## Step 4 — Build and push the image
 
@@ -139,7 +139,7 @@ kubectl get pods
 
 ## Step 6 — Verify the hourly image
 
-First request → downloads from Lorem Picsum and caches it:
+First request downloads from Lorem Picsum and caches it:
 
 ```bash
 curl -s -o /tmp/k8s-img1.jpg -w "%{http_code} %{size_download}B\n" http://localhost:8081/image
@@ -152,8 +152,8 @@ file /tmp/k8s-img1.jpg
 # → JPEG image data ... 1200x1200
 ```
 
-Open the browser: `http://localhost:8081/` → the picture on the page.
-Refresh → same picture (cached).
+Open the browser: `http://localhost:8081/` → the picture on the page;
+refresh → same picture (cached).
 
 Second request right after → served from cache, no API call:
 
@@ -171,14 +171,14 @@ curl -s http://localhost:8081/shutdown
 # → Shutting down on request (exercise 1.12 test)
 ```
 
-The pod restarts (CrashLoop? no — the deployment recreates it):
+The pod restarts (CrashLoop? no, the deployment recreates it):
 
 ```bash
 kubectl get pods
 # → todo-app-xxxxxxxxxx-xxx   1/1  Running   1 (1 restart)
 ```
 
-Now the image must still be served from the PV — WITHOUT calling the
+Now the image must still be served from the PV, WITHOUT calling the
 API (it's younger than 10 minutes):
 
 ```bash
@@ -192,19 +192,19 @@ cmp /tmp/k8s-img1.jpg /tmp/k8s-img3.jpg && echo "SAME image after container rest
 ## Step 8 — (Optional) Watch the 10-minute rotation
 
 The exercise allows the old picture one more time after 10 minutes,
-then the next request fetches a new one. Our implementation fetches a
-new picture as soon as the cached file is older than 10 minutes.
+then the next request fetches a new one; ours fetches a new picture as
+soon as the cached file is older than 10 minutes.
 
 To see the rotation quickly without waiting, restart the pod so the
 file's mtime is fresh, then either wait 10 minutes or temporarily
-lower `MAX_AGE_SECS` in the source (not recommended for submission —
+lower `MAX_AGE_SECS` in the source (not recommended for submission;
 keep 600):
 
 ```bash
 kubectl delete pod -l app=todo-app   # pod restarts, mtime resets
 ```
 
-Then just leave the browser open — every 10 minutes the picture
+Then just leave the browser open, and every 10 minutes the picture
 changes on the next request.
 
 ## Step 9 — Clean up
@@ -218,14 +218,14 @@ kubectl get pv,pvc
 
 ## P/S:
 
-1. **Caching on a PV**: fetch once, serve from disk — the API is
+1. **Caching on a PV**: fetch once, serve from disk; the API is
    called at most once per 10 minutes, and a container crash doesn't
    lose the picture.
 2. **mtime as TTL**: `metadata().modified().elapsed()` is a dead-simple
-   "is this file fresh?" check — no timers, no state, survives restarts.
+   "is this file fresh?" check: no timers, no state, survives restarts.
 3. **Local PVs** (1.11 recap): admin-owned, node-bound, survives pod
-   deletion — exactly what the exercise means by "cache into a
+   deletion, which is what the exercise means by "cache into a
    persistent volume".
 4. **Deliberate shutdown for testing**: a `/shutdown` endpoint (or
-   `kubectl delete pod`) is the right way to prove persistence —
-   restart the container and verify the data is still served.
+   `kubectl delete pod`) is the right way to prove persistence. Restart
+   the container and verify the data is still served.

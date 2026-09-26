@@ -10,29 +10,28 @@
 What we will learn by *doing*:
 
 1. **Canary vs rolling update.** A rolling update replaces every pod and hopes; a
-   canary gives the new version a fraction of the traffic and asks a question about
-   it before going further.
+   canary sends the new version a fraction of the traffic and asks a question first.
 2. **Argo Rollouts**: a `Rollout` whose `strategy.canary.steps` mixes `setWeight`,
-   `pause` and `analysis`, plus the two resources behind it — `AnalysisTemplate`
-   (the test) and `AnalysisRun` (one execution of that test).
-3. **Judging a release by a metric instead of by the app.** Both versions of this
-   lab's app answer `/healthz` with 200 and both are `1/1 Running`; what separates
-   them is CPU. That is exactly the gap probes cannot close.
-4. **Prometheus as the analysis provider**: the address, the query, and why a query
-   for an analysis must be a **scalar**.
+   `pause` and `analysis`, plus its two resources: `AnalysisTemplate` (the test) and
+   `AnalysisRun` (one execution).
+3. **Judging a release by a metric, not the app.** Both versions answer `/healthz`
+   with 200 and are `1/1 Running`; what separates them is CPU, the gap probes cannot
+   close.
+4. **Prometheus as the analysis provider**: the address, the query, and why it must
+   be a **scalar**.
 5. **Operating the thing**: `kubectl argo rollouts get rollout -w`, `promote`,
-   `abort` / `retry` — and what "revert the update" looks like on the cluster.
+   `abort` / `retry`, and what "revert the update" looks like.
 
 ---
 
 ## Step 0 — what you need
 
 A cluster with `kubectl`, `helm` and internet access **from your laptop** (the
-cluster itself cannot reach quay.io / registry.k8s.io / ghcr.io).
+cluster cannot reach quay.io / registry.k8s.io / ghcr.io).
 
 **Argo Rollouts.** The chapter installs it with one command that pulls a manifest
-from the internet and then an image from quay.io — on this cluster the image has to
-be mirrored first:
+from the internet and then an image from quay.io; here that image must be mirrored
+first:
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -57,11 +56,11 @@ kubectl get crd | grep argoproj
 
 ![argo-rollouts controller pod running, and the five argoproj CRDs](./assets/image.png)
 
-Five CRDs: `rollouts` (the new Deployment-like object), `analysistemplates` /
+Five CRDs: `rollouts` (the Deployment-like object), `analysistemplates` /
 `clusteranalysistemplates` (the tests), `analysisruns` (one execution of a test) and
 `experiments`.
 
-> Already installed in your cluster? Then only the checks below matter — `kubectl
+> Already installed in your cluster? Then only the checks below matter: `kubectl
 > apply` is idempotent, and the namespace may already exist.
 
 **The plugin** (optional, but it is how the rollouts below are watched):
@@ -76,7 +75,7 @@ kubectl argo rollouts version
 ![installing the kubectl-argo-rollouts plugin and printing its version](./assets/image1.png)
 
 **Room to run.** The monitoring stack and the canary take about 600 MiB of
-requests; on this 4 × e2-small cluster that fits, but check first:
+requests; on this 4 × e2-small cluster that fits, but check:
 
 ```bash
 kubectl describe nodes | grep -A 6 "Allocated resources"
@@ -88,10 +87,9 @@ kubectl describe nodes | grep -A 6 "Allocated resources"
 
 ## Step 1 — Prometheus, because the analysis asks it questions
 
-The 4.4 exercise measures CPU, and only Prometheus has that data. Everything is
-mirrored into your own registry first. Grafana and Alertmanager stay **off** — this
-exercise needs the time-series database, not the dashboards, and the cluster is
-small.
+The 4.4 exercise measures CPU, and only Prometheus has that. Everything is mirrored
+into your registry first. Grafana and Alertmanager stay **off**: this needs the
+time-series database, not dashboards, and the cluster is small.
 
 Mirror the six images the chart will ask for:
 
@@ -123,8 +121,8 @@ docker tag  ghcr.io/jkroepke/kube-webhook-certgen:1.8.8 $R/kube-webhook-certgen:
 docker push $R/kube-webhook-certgen:1.8.8
 ```
 
-Then render the chart and check that every image it wants is one of yours — a mirror
-you forgot shows up here instead of later as `ImagePullBackOff`:
+Then render the chart: every image should be one of yours, because a forgotten
+mirror shows up here instead of later as `ImagePullBackOff`:
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -137,8 +135,7 @@ helm upgrade --install prom prometheus-community/kube-prometheus-stack \
   --version 91.2.3 -n monitoring -f part4/4.4/values.yaml
 ```
 
-Then find the address your AnalysisTemplate will talk to — it is the Service, not a
-pod:
+Then find the address your AnalysisTemplate talks to: the Service, not a pod:
 
 ```bash
 kubectl -n monitoring get svc prom-kube-prometheus-stack-prometheus
@@ -146,8 +143,7 @@ kubectl -n monitoring get svc prom-kube-prometheus-stack-prometheus
 
 ![the Prometheus Service in the monitoring namespace, exposing 9090](./assets/image3.png)
 
-The value used below is the fully-qualified name of that Service, which works from
-any namespace in the cluster:
+The value below is that Service's fully-qualified name, working from any namespace:
 
 ```text
 http://prom-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
@@ -158,17 +154,17 @@ http://prom-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
 ## Step 2 — the application
 
 `part4/4.4/ping-pong/` is a small axum server with two behaviours, switched by one
-environment variable — so one image covers both releases:
+environment variable, so one image covers both:
 
-- `PINGPONG_MODE=normal` (default) — answers, and burns almost nothing.
-- `PINGPONG_MODE=hog` — answers, and a background thread spins on arithmetic.
+- `PINGPONG_MODE=normal` (default): answers, and burns almost nothing.
+- `PINGPONG_MODE=hog`: answers, and a background thread spins on arithmetic.
 
 Both modes answer `GET /healthz` with `200 ok` and `GET /` with a `pong …` line. The
-container port is **3541**, the same one the course's ping-pong app uses. There is no
-database here: the exercise measures CPU, and a database would only add noise to a
-namespace-wide CPU sum.
+container port is **3541**, as in the course's ping-pong app. There is no database:
+the exercise measures CPU, and a database would add noise to a namespace-wide CPU
+sum.
 
-Measure the difference on your laptop before shipping anything:
+Measure the difference on your laptop first:
 
 ```bash
 cd part4/4.4/ping-pong
@@ -181,7 +177,7 @@ ps -o %cpu= -p $(pgrep -f 'release/ping-pong' | head -1)
 ![ping-pong in normal mode answering 200, ps reporting almost no CPU](./assets/image4.png)
 
 Swap `PINGPONG_MODE=hog` and the same command shows ≈ 99 % CPU **while `/healthz`
-still answers 200**. That is the release the canary exists to catch.
+still answers 200**: the release the canary exists to catch.
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -195,10 +191,10 @@ docker push $R/ping-pong:4.4
 
 Two manifests, both yours to type.
 
-**`part4/4.4/manifests/analysistemplate.yaml`** — the test. A namespace CPU sum is
+**`part4/4.4/manifests/analysistemplate.yaml`**: the test. A namespace CPU sum is
 not a number Prometheus hands out directly: `container_cpu_usage_seconds_total` is a
-counter of seconds burned per container, so the *rate* is what we want, summed over
-every container in the namespace.
+counts seconds burned per container, so the *rate* is what we want, summed over
+every container.
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -222,21 +218,21 @@ spec:
             )
 ```
 
-Read the fields as a sentence: *"wait a minute (`initialDelay`), then every 30
-seconds (`interval`), eight times (`count` — four minutes, so five in total), ask
-Prometheus for that query and require the answer to stay under a third of a core
+Read it as a sentence: *"wait a minute (`initialDelay`), then every 30 seconds
+(`interval`), eight times (`count`, four minutes, so five in total), ask Prometheus
+for that query, and require the answer under a third of a core
 (`successCondition`)."*
 
-Two details that cost real debugging time:
+Two details that cost debugging time:
 
-- **`scalar(...)` is needed.** Without it the query returns a *vector* — one value
-  per series — and Argo cannot compare a vector with a number:
+- **`scalar(...)` is needed.** Without it the query returns a *vector* (one value
+  per series), which Argo cannot compare with a number:
   `could not evaluate successCondition "result < 0.3": invalid operation: <
   (mismatched types []float64 and float64)`.
-- `container!=""` drops the cgroup line that represents the whole pod, so the sum
-  counts containers, as the exercise says.
+- `container!=""` drops the pod-level cgroup line, so the sum counts containers, as
+  the exercise says.
 
-**`part4/4.4/manifests/rollout.yaml`** — the canary:
+**`part4/4.4/manifests/rollout.yaml`**: the canary:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -301,13 +297,12 @@ spec:
       targetPort: 3541
 ```
 
-The steps say: shift a quarter of the traffic, wait for the new pods to be
-measurable, then **ask the question**; only if the answer is acceptable continue to
-half, wait, and finish at full traffic.
+The steps: shift a quarter of the traffic, wait for the new pods to be measurable,
+then **ask the question**; if acceptable, continue to half and finish at full
+traffic.
 
-> The analysis is placed **after** `setWeight` deliberately. Put it first and it
-> measures the *old* version's CPU — a test that passes no matter how bad the release
-> is.
+> The analysis is placed **after** `setWeight` deliberately; put it first and it
+> measures the *old* version's CPU, passing no matter how bad the release is.
 
 Apply, and keep the rollouts' own view open in a second terminal:
 
@@ -321,7 +316,7 @@ kubectl argo rollouts get rollout ping-pong -n canary --watch   # if you install
 
 ![argo rollouts get rollout: Healthy, step 5/5, weight 100, four pods ready](./assets/image5.png)
 
-The first apply creates all four pods straight away — a canary only *starts* when the
+The first apply creates all four pods straight away; a canary only *starts* when the
 pod template changes, which is the next step.
 
 ---
@@ -329,16 +324,16 @@ pod template changes, which is the next step.
 ## Step 4 — a release that deserves to go out
 
 Change nothing about the app's behaviour, only make the Rollout believe it is a new
-version. The cheapest way is a change-cause annotation... which is not a pod template
-change, so instead touch a label on the pod template:
+version. A change-cause annotation is not a pod template change, so touch a pod
+template label:
 
 ```bash
 kubectl -n canary patch rollout ping-pong --type=merge \
   -p '{"spec":{"template":{"metadata":{"annotations":{"release":"first"}}}}}'
 ```
 
-Watch the four pods: one of them starts the new version, and the rollout then waits
-for the analysis. The analysis data is worth looking at while you wait:
+Watch the four pods: one starts the new version, and the rollout then waits for the
+analysis, whose data is worth watching while you wait:
 
 ```bash
 kubectl get analysisrun -n canary -w
@@ -354,9 +349,9 @@ kubectl -n canary get analysisrun -o jsonpath='{range .items[*]}{.metadata.creat
            phase: Successful → the rollout continued to weight 100, Healthy, 4/4 pods
 ```
 
-This is the canary working: a quarter of the traffic through a version that is
-measurably cheap, then half, then everything — with `setWeight 50` never reached
-before the numbers were read.
+This is the canary working: a quarter of the traffic through a measurably cheap
+version, then half, then everything, with `setWeight 50` never reached before the
+numbers were read.
 
 ![watching the AnalysisRun of the safe release: Running, 0s to 3m30s](./assets/image6.png)
 ![the measurements of the safe release, all around 0.0003 cores](./assets/image7.png)
@@ -367,8 +362,8 @@ before the numbers were read.
 
 ## Step 5 — the release that burns CPU
 
-Now ship the version that is "healthy" and expensive: change `PINGPONG_MODE` to
-`hog` in the Rollout and apply it.
+Now ship the "healthy" and expensive version: change `PINGPONG_MODE` to `hog` in the
+Rollout and apply it.
 
 ```bash
 sed -i 's/value: normal/value: hog/' part4/4.4/manifests/rollout.yaml
@@ -383,13 +378,13 @@ t+100s     first measurement, once the initialDelay expires: 0.3476 cores
 t+170s     the hog pod is gone; 4/4 pods serving from the old, normal ReplicaSet
 ```
 
-(The timings and the value are from the reference run of this lab; the shape is the
-same in every run — what varies is how far above 0.3 the hog pod lands.)
+(Timings and value are from the reference run; the shape is the same each run,
+varying only in how far above 0.3 the hog pod lands.)
 
 Watch what happens, and what does not: the new pod passes its readiness probe,
-answers `pong … mode=hog`, and never reaches half of the traffic. The AnalysisRun
-fails on its first measurement, Argo aborts the rollout and scales the previous
-ReplicaSet back up — the application is untouched.
+answers `pong … mode=hog`, and never reaches half the traffic. The AnalysisRun fails
+its first measurement, Argo aborts the rollout and scales the previous ReplicaSet
+back up, leaving the application untouched.
 
 ```bash
 kubectl -n canary get rollout ping-pong -o jsonpath='{.status.message}{"\n"}'
@@ -400,7 +395,7 @@ RolloutAborted: Rollout aborted update to revision 5: Step-based analysis phase
 error/failed: Metric "namespace-cpu" assessed Failed due to failed (1) > failureLimit (0)
 ```
 
-Revert your manifest, since you will want the healthy version again:
+Revert your manifest; you will want the healthy version again:
 
 ```bash
 sed -i 's/value: hog/value: normal/' part4/4.4/manifests/rollout.yaml
@@ -410,9 +405,9 @@ sed -i 's/value: hog/value: normal/' part4/4.4/manifests/rollout.yaml
 
 ## Step 6 — a value set too low (the exercise's last requirement)
 
-A threshold that a healthy release cannot pass is not a safe default either — with
-`successCondition: result < 0.0002`, even the `normal` version fails, and the update
-simply never happens. Try it:
+A threshold a healthy release cannot pass is no safe default either: with
+`successCondition: result < 0.0002`, even the `normal` version fails and the update
+never happens. Try it:
 
 ```bash
 sed -i 's/result < 0.3/result < 0.0002/' part4/4.4/manifests/analysistemplate.yaml
@@ -429,10 +424,10 @@ t+100s     first measurement: 0.000277 cores   ← a healthy release, and it sti
            on the version that was already serving
 ```
 
-The requirement is met from the other side: the whole point of a threshold is that it
-sits **between** a good release and a bad one. Measured on this cluster, the healthy
-namespace burns about **0.0003 cores**, and one `hog` pod adds **0.5** — three orders
-of magnitude apart, which is why `0.3` is a comfortable hardcoded value.
+The requirement is met from the other side: a threshold has to sit **between** a good
+release and a bad one. Measured on this cluster, the healthy namespace burns about
+**0.0003 cores** and one `hog` pod adds **0.5**, three orders of magnitude apart,
+which is why `0.3` is comfortable.
 
 Put the threshold back:
 
@@ -441,7 +436,7 @@ sed -i 's/result < 0.0002/result < 0.3/' part4/4.4/manifests/analysistemplate.ya
 kubectl apply -f part4/4.4/manifests/analysistemplate.yaml
 ```
 
-Some other ways out of a stuck rollout, for the day you need them:
+Some other ways out of a stuck rollout:
 
 ```bash
 kubectl argo rollouts promote ping-pong -n canary   # if it is paused indefinitely
@@ -466,7 +461,7 @@ kubectl delete namespace monitoring
 kubectl get crd | grep monitoring.coreos.com    # left behind; delete them when the course is over
 ```
 
-Argo Rollouts can stay, or (delete it with the manifest you downloaded in Step 0):
+Argo Rollouts can stay, or be deleted with the manifest from Step 0:
 
 ```bash
 kubectl delete -n argo-rollouts -f /tmp/argo-rollouts-install.yaml
@@ -478,16 +473,16 @@ kubectl delete crd rollouts.argoproj.io analysisruns.argoproj.io \
 
 ## P.S. — what this exercise leaves you with
 
-- **Probes ask the app; a canary asks the system.** Both versions here are
-  `1/1 Running` with a green `/healthz`, so no probe can tell them apart — CPU can.
-- **`setWeight` before `analysis`, always.** An analysis placed before the new pods
-  exist measures the old version and approves anything.
+- **Probes ask the app; a canary asks the system.** Both versions are `1/1 Running`
+  with a green `/healthz`, so no probe can separate them; CPU can.
+- **`setWeight` before `analysis`, always.** An analysis before the new pods exist
+  measures the old version and approves anything.
 - **An analysis is a scalar comparison.** Wrap the query in `scalar()`; a vector
-  answers with `mismatched types []float64 and float64`.
-- **`initialDelay` is the price of trusting a metric.** Counters and rates need to be
-  scraped before they mean anything, which is also why `count × interval` defines the
-  judgement window — here five minutes, the window the exercise asks for.
+  answers `mismatched types []float64 and float64`.
+- **`initialDelay` is the price of trusting a metric.** Rates must be scraped before
+  they mean anything; `count × interval` sets the judgement window, here five minutes,
+  as the exercise asks.
 - **A threshold lives between two measurements**, not at a round number: 0.0003
-  (healthy) versus 0.5 (one hog pod) is what makes 0.3 honest.
+  (healthy) versus 0.5 (one hog pod) makes 0.3 honest.
 - **A failed analysis is a successful deployment system.** The bad release reached one
-  pod out of four, and then not even that: Argo reverted automatically.
+  pod out of four, then not even that: Argo reverted automatically.

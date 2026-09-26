@@ -1,10 +1,10 @@
 # Exercise 3.8 — The project, step 17: deleting a branch deletes the environment
 
 > Follow-up to 3.7. The pipeline now deploys each branch to a namespace
-> named after it — but when a branch is deleted, its namespace (with its
-> todo-app, backend, postgres, cron) stays behind. This lab adds a
-> **second workflow** that listens for branch deletions and deletes the
-> matching namespace. No app code changes — a new workflow file only.
+> named after it, but when a branch is deleted its namespace (with its
+> todo-app, backend, postgres, cron) stays behind. This lab adds a **second
+> workflow** that removes the matching namespace on branch deletion. No app
+> code changes, just a new workflow file.
 
 ## Goal
 
@@ -18,31 +18,27 @@ feature deleted                     main (untouched)
 
 ## Knowledge — the `delete` event
 
-- A workflow with `on: delete` fires whenever **any ref (branch or tag)
-  is deleted** on GitHub — from the UI, API, or `git push origin
-  --delete <branch>`.
-- **Delete workflows run from the default branch** (`main`): the
-  workflow file must be **on `main`**, not on the branch being deleted.
+- A workflow with `on: delete` fires whenever **any ref (branch or tag) is
+  deleted**, from the UI, API, or `git push origin --delete <branch>`.
+- **Delete workflows run from the default branch**: the file must be **on
+  `main`**, not the deleted branch.
 - ⚠️ **The trap of this exercise: the `REF` variables lie.** On a `delete`
   event the standard `GITHUB_REF` / `GITHUB_REF_NAME` / `GITHUB_REF_TYPE`
-  variables describe the **default branch (`main`)** — not the ref that was
-  deleted. The deleted ref lives only in the event payload: `github.event.ref`
-  (e.g. `feat37`) and `github.event.ref_type` (`branch` or `tag`) — pass them
-  into the job through an `env:` block. If you reach for `GITHUB_REF_NAME`
-  instead, the workflow computes `NAMESPACE=main`, hits the
-  *"refusing to delete project"* guard and exits `0`: a **green run that
-  deletes nothing** (that is exactly what happened here on 2026-09-10 —
-  deleting branch `feat37` left namespace `feat37` alive while the run said
-  *success*).
-- **Do NOT use `actions/checkout` in this workflow.** On a `delete`
-  event the deleted ref no longer exists, so checkout of that ref fails.
-  Cleanup needs no source code — auth + credentials + `kubectl` are
-  enough.
-- `kubectl delete namespace <ns> --ignore-not-found` — removes the whole
-  environment (all workloads it contains) and does not fail when the
-  namespace is already gone.
-- Reuses the same WIF chain (SA `github-actions-sa`, pool
-  `github-pool`, the 3 secrets) — nothing new to create.
+  describe the **default branch (`main`)**, not the deleted ref. That ref
+  lives only in the event payload: `github.event.ref` (e.g. `feat37`) and
+  `github.event.ref_type` (`branch` or `tag`), passed in through `env:`.
+  Reach for `GITHUB_REF_NAME` and the workflow computes
+  `NAMESPACE=main`, hits the *"refusing to delete project"* guard and exits
+  `0`: a **green run that deletes nothing** (exactly what happened on
+  2026-09-10, when deleting branch `feat37` left namespace `feat37` alive
+  while the run reported *success*).
+- **Do NOT use `actions/checkout` here.** On a `delete` event the deleted
+  ref no longer exists, so checking it out fails; cleanup needs only auth and
+  `kubectl`.
+- `kubectl delete namespace <ns> --ignore-not-found` removes the whole
+  environment and does not fail if the namespace is already gone.
+- Reuses the same WIF chain (SA `github-actions-sa`, pool `github-pool`,
+  the 3 secrets).
 
 ---
 
@@ -126,7 +122,7 @@ jobs:
 
 ## Step 2 — End-to-end test (uses 3.7, still on the local lab repo)
 
-Requires the 3.7-patched pipeline and the cluster from 3.7 running.
+Needs the 3.7-patched pipeline and its cluster up.
 
 ```bash
 # 1) create + push a test branch — 3.7 pipeline builds its namespace
@@ -167,7 +163,7 @@ kubectl get ns project   # still here ✔
 
 ## Step 4 — Clean up (only after the whole chapter is done)
 
-The whole chain is still needed until you exit the course — really:
+The whole chain is still needed until you exit the course, really:
 
 ```bash
 # cluster + images + repo (same as 3.6):

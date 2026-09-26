@@ -2,35 +2,32 @@
 
 The chapter reverses the deployment pipeline: instead of CI *pushing* into the cluster,
 the cluster *pulls* the desired state from a Git repository. **ArgoCD** is the tool, and
-this lab is the smallest honest version of the chapter's flow: an app whose image tag
-lives in a repository, ArgoCD watching that repository, and a commit — nothing else —
-that changes what runs.
+this lab is a small honest version of that flow: an app whose image tag lives in a
+repository, ArgoCD watching it, and a commit that changes what runs.
 
-One difference from the chapter is forced by this cluster, and it turned out to be
-repairable: **it could not reach `github.com`** — nor `gitlab.com`, `codeberg.org` or
-`bitbucket.org` (measured from a pod: `000 in 8s`) — because these private nodes had **no
-Cloud NAT**. ArgoCD clones over the network, so at the time of this lab the repository had
-to live inside the cluster, and the lab runs a small **Gitea** beside it. Everything after
-that is the chapter's flow unchanged: a repo, a Kustomization, an `Application`, automated
-sync, selfHeal.
+One difference from the chapter is forced by this cluster: **it could not reach
+`github.com`**, nor `gitlab.com`, `codeberg.org` or
+`bitbucket.org` (measured from a pod: `000 in 8s`), because these private nodes had **no
+Cloud NAT**. ArgoCD clones over the network, so the repository had to live inside the
+cluster, and the lab runs a small **Gitea** beside it. Everything after that is the
+chapter's flow: a repo, a Kustomization, an `Application`, automated sync, selfHeal.
 
 > **Update, after 4.8.** That missing egress was the real cause, and 4.8 repairs it: a Cloud
 > Router plus a Cloud NAT (its Step 0 carries the commands), after which `github.com`
-> answers from inside the cluster and ArgoCD reads a GitHub repository directly — with no
-> Gitea and no image mirroring at all. This lab is kept exactly as it was practised, because
-> the in-cluster repository it teaches is also the answer on a cluster where egress cannot
-> be added, and every trap below (the `Recreate` volume, the repository that comes out
-> private, the mirrors) comes from that one constraint.
+> answers from inside the cluster and ArgoCD reads a GitHub repository directly, with no
+> Gitea and no image mirroring. This lab is kept as practised, because the in-cluster
+> repository is also the answer where egress cannot be added, and every trap below (the
+> `Recreate` volume, the private repository, the mirrors) comes from that one constraint.
 
 ---
 
 ## Step 0 — what you need in front of you
 
 - the GKE cluster and `kubectl` pointing at it;
-- `docker` (images are mirrored into your registry — pods could not reach `quay.io`,
-  `ghcr.io` or `public.ecr.aws` before 4.8's NAT; mirroring works either way);
+- `docker` (images are mirrored into your registry; pods could not reach `quay.io`,
+  `ghcr.io` or `public.ecr.aws` before 4.8's NAT, but mirroring works either way);
 - `git`;
-- **the `kustomize` CLI** — `kubectl kustomize` renders, but `kustomize edit` is what the
+- **the `kustomize` CLI**: `kubectl kustomize` renders, but `kustomize edit` is what the
   release step needs:
 
 ```bash
@@ -39,8 +36,8 @@ sudo mv kustomize /usr/local/bin/
 kustomize version
 ```
 
-- and room in the cluster: ArgoCD is seven pods and Gitea one. Check with the lab's own
-  capacity script and free the previous labs' pods if the scheduler complains:
+- and room in the cluster: ArgoCD is seven pods, Gitea one. Check with the lab's capacity
+  script and free earlier labs' pods if the scheduler complains:
 
 ```bash
 kubectl -n project get deploy broadcaster -o jsonpath='{.spec.replicas}{"\n"}'
@@ -53,39 +50,36 @@ kubectl -n project scale deploy broadcaster --replicas=1
 
 Today's pipeline (3.6) *pushes*: GitHub Actions builds an image, then calls
 `kubectl apply` on the cluster. That works because the pipeline holds cluster
-credentials — which is exactly the problem. Anyone who can run the pipeline can change
-the cluster, and a cluster that cannot be reached from outside (a laptop, a private
-network) cannot be deployed to at all.
+credentials, which is exactly the problem: anyone who can run the pipeline can change the
+cluster, and one unreachable from outside (a laptop, a private network) cannot
+be deployed to at all.
 
-GitOps reverses it: CI still builds and publishes the image, but it no longer touches
-the cluster. It writes *what should run* into a repository, and a component inside the
-cluster — ArgoCD — reads that repository and makes it true. The repository becomes the
-only source of truth for the cluster's state, so:
+GitOps reverses it: CI still builds and publishes the image, but no longer touches the
+cluster. It writes *what should run* into a repository, and a component inside the
+cluster, ArgoCD, makes it true. The repository becomes the only source of truth for the
+state, so:
 
-- nobody needs cluster access except the cluster itself — the security argument;
+- nobody needs cluster access except the cluster itself: the security argument;
 - every change to the cluster is a commit: reviewable, revertible, attributable;
 - the same repository can be pointed at another cluster, which is then simply *that*
   state.
 
 The exercise's own words: *"when you commit to the repository, the application is
-automatically updated"*. That is the whole lab — with a repository this cluster can
-actually reach.
+automatically updated"*. That is the whole lab, with a repository this cluster can reach.
 
 ---
 
 ## Step 2 — the app, and the image that will move
 
-The app is this folder's `log-output` — a Rust/axum service that prints one line every
-five seconds (the chapter's "log output" idea) and serves a page saying which version it
-is running:
+The app is this folder's `log-output`: a Rust/axum service that prints a line every
+five seconds (the chapter's "log output" idea) and serves a page showing its version:
 
 ```text
 [log] 1789656008 6cb77df4 version=unknown
 ```
 
-`APP_VERSION` comes from the environment, so the Deployment — not the image — decides
-what the page claims. That is deliberate: the GitOps demo changes the Deployment, and
-the page must show it.
+`APP_VERSION` comes from the environment, so the Deployment, not the image, decides
+what the page claims: the demo changes the Deployment, and the page must show it.
 
 Type the Dockerfile beside the app:
 
@@ -111,8 +105,8 @@ docker build -t $R/log-output:4.7 part4/4.7/log-output
 docker push $R/log-output:4.7
 ```
 
-The app runs as a plain container too, which is the quickest way to see what it does. Publish
-it on **3100** — 3000 is a port the rest of the lab needs (Step 3 port-forwards Gitea there):
+The app also runs as a plain container, the quickest way to see what it does. Publish
+it on **3100**: 3000 is a port the lab needs (Step 3 port-forwards Gitea there):
 
 ```bash
 docker run --rm -p 3100:3000 -e APP_VERSION=v1 $R/log-output:4.7
@@ -128,7 +122,7 @@ curl -s localhost:3100/healthz
 
 ## Step 3 — a git server inside the cluster
 
-The images first, because pods here cannot reach the registries Gitea and ArgoCD
+The images first: pods cannot reach the registries Gitea and ArgoCD
 publish to:
 
 ```bash
@@ -139,10 +133,10 @@ docker pull ghcr.io/dexidp/dex:v2.45.1             && docker push $R/dex:v2.45.1
 docker pull public.ecr.aws/docker/library/redis:8.2.3-alpine && docker push $R/redis:8.2.3-alpine
 ```
 
-Then the namespace and Gitea itself. Note the strategy: Gitea keeps its repositories on
-a **ReadWriteOnce** volume, and a rolling update would leave the new pod waiting for a
-volume the old pod still holds — the `Multi-Attach` deadlock from 4.5. A single replica
-with a `Recreate` strategy is the correct shape here, not a workaround:
+Then the namespace and Gitea. Mind the strategy: Gitea keeps its repositories on a
+**ReadWriteOnce** volume, and a rolling update leaves the new pod waiting for a
+volume the old pod still holds, the `Multi-Attach` deadlock from 4.5. A single replica
+with `Recreate` is the correct shape, not a workaround:
 
 `part4/4.7/gitea/gitea.yaml`
 
@@ -223,9 +217,9 @@ spec:
       targetPort: 3000
 ```
 
-Three settings are doing the work that would otherwise be manual setup:
+Three settings do work that would otherwise be manual setup:
 `ENABLE_PUSH_CREATE_USER` lets a `git push` create its own repository,
-`DEFAULT_PRIVATE=public` makes ArgoCD able to clone it without credentials, and
+`DEFAULT_PRIVATE=public` lets ArgoCD clone it without credentials, and
 `INSTALL_LOCK` skips the web installer.
 
 ```bash
@@ -234,7 +228,7 @@ kubectl apply -n gitops -f part4/4.7/gitea/gitea.yaml
 kubectl rollout status deploy/gitea -n gitops
 ```
 
-An admin account, so you can push with a password over HTTP — **one line, all of it**:
+An admin account, so you can push with a password over HTTP (**one line**):
 
 ```bash
 kubectl -n gitops exec deploy/gitea -- env GITEA_I_AM_BEING_UNSAFE_RUNNING_AS_ROOT=true gitea admin user create --username gitops --password gitops-lab47 --email gitops@example.com --admin --must-change-password=false
@@ -246,9 +240,8 @@ kubectl -n gitops exec deploy/gitea -- env GITEA_I_AM_BEING_UNSAFE_RUNNING_AS_RO
 ```
 
 From here on the repository server is at `gitea.gitops.svc.cluster.local:3000`, and the
-work happens with ordinary `git`. Make the config directory that the rest of the lab
-uses — it lives in this lab's folder, so the repository you push *is* part of your
-submission:
+work happens with ordinary `git`. Make the config directory the lab uses;
+it lives in this lab's folder, so the repository you push *is* part of your submission:
 
 ```bash
 kubectl -n gitops port-forward svc/gitea 3000:3000
@@ -259,28 +252,27 @@ git remote add gitea http://gitops:gitops-lab47@localhost:3000/gitops/config.git
 
 ![Gitea's front page on localhost:3000, version 1.24.7](./assets/image1.png)
 
-The remote named `gitea` is what the pushes below use — an explicit remote avoids the
-*"The current branch main has no upstream branch"* error, which is git saying it was given
-no remote at all.
+The remote named `gitea` is what the pushes use; an explicit remote avoids the
+*"The current branch main has no upstream branch"* error, git saying it got no
+remote.
 
 **Looking at what you pushed.** Open <http://localhost:3000> and sign in with the account
-from the command above — **username `gitops`, password `gitops-lab47`**:
+above: **username `gitops`, password `gitops-lab47`**:
 
-- the repository is at <http://localhost:3000/gitops/config> — the file tree (`base/`,
+- the repository is at <http://localhost:3000/gitops/config>: the file tree (`base/`,
   `overlays/prod/`) and the commit under it;
 - direct links: `/gitops/config/src/branch/main/overlays/prod/kustomization.yaml` for the
   file, `/gitops/config/commits/branch/main` for the log;
 - the form also offers **Sign in with a security key**, which fails with *"Could not read
   your security key … relying party ID is not a registrable domain suffix"*: Gitea's
   configured URL is `gitea.gitops.svc.cluster.local` (what ArgoCD needs), so the browser
-  refuses the passkey on `localhost`. Use the username and password fields.
+  refuses the passkey on `localhost`. Use the username and password.
 
 ---
 
 ## Step 4 — ArgoCD
 
-The install manifest comes from GitHub, and **your laptop** fetches it — the cluster
-never does:
+The install manifest comes from GitHub, and **your laptop** fetches it, not the cluster:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
@@ -294,8 +286,8 @@ image: public.ecr.aws/docker/library/redis:8.2.3-alpine
 image: quay.io/argoproj/argocd:v3.5.3
 ```
 
-Three images, none of them reachable by a pod — so they are replaced by the mirrors
-before the file is applied:
+Three images, none reachable by a pod, so the mirrors replace them before
+applying:
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -308,8 +300,8 @@ kubectl create namespace argocd
 kubectl apply --server-side -n argocd -f /tmp/argocd-mirrored.yaml
 ```
 
-Check the file you are about to apply — **every** image must be yours, and this is the check
-that catches a missed substitution (one is easy to miss):
+Check the file before applying: **every** image must be yours; this catches a
+missed substitution (one is easy to miss):
 
 ```bash
 grep -E "^\s+image: " /tmp/argocd-mirrored.yaml | sort -u
@@ -326,9 +318,9 @@ kubectl -n argocd delete pod argocd-application-controller-0
 
 > **The namespace is not optional.** The install manifest's objects carry no
 > `namespace:` field, so `kubectl apply -f /tmp/argocd-mirrored.yaml` without `-n argocd`
-> puts the whole of ArgoCD into whatever namespace your context happens to be in — for
-> this project that is `project`, next to your todos. If that happens, the objects are
-> easy to find again, because the manifest labels everything
+> puts the whole of ArgoCD into whatever namespace your context is in, for this project
+> `project`, next to your todos. They are then easy to find again, since the manifest
+> labels everything
 > `app.kubernetes.io/part-of: argocd`:
 >
 > ```bash
@@ -336,18 +328,18 @@ kubectl -n argocd delete pod argocd-application-controller-0
 >   -l app.kubernetes.io/part-of=argocd
 > ```
 
-Seven pods start. Two things on this cluster differ from the chapter's instructions, and
-both have the same shape — *the pod cannot reach the internet*:
+Seven pods start. Two things here differ from the chapter, both shaped alike:
+*the pod cannot reach the internet*:
 
 - **`ImagePullBackOff` on all seven pods**, and with it *"secrets
   'argocd-initial-admin-secret' not found"*: `argocd-server` creates that secret when it
-  starts, so it cannot exist before the images pull. It means the `sed` above was skipped
-  — apply again.
+  starts, so it cannot exist before the images pull. It means the `sed` above was skipped.
+  Apply again.
 - **A `LoadBalancer` service never becomes reachable here.** The chapter patches
   `argocd-server` to `LoadBalancer`; these nodes have no external addresses, so
-  port-forward instead and leave the service as it is.
+  port-forward instead and leave the service alone.
 
-The UI is served by `argocd-server` on 443, and a port-forward is how you reach it:
+The UI is served by `argocd-server` on 443; a port-forward reaches it:
 
 ```bash
 kubectl -n argocd get pods
@@ -359,7 +351,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 ```
 
 Open <https://localhost:8080>, accept the certificate, log in as `admin`. The first
-screen is empty — there is nothing to sync yet.
+screen is empty; there is nothing to sync yet.
 
 ![The ArgoCD login page at localhost:8080, the chapter's first screen](./assets/image.png)
 
@@ -367,8 +359,8 @@ screen is empty — there is nothing to sync yet.
 
 ## Step 5 — the state in a repository
 
-This is the state ArgoCD will keep: a Kustomize base describing the app, and one
-overlay per environment. Type these four files (they are what you push to Gitea):
+This is the state ArgoCD keeps: a Kustomize base describing the app, and one
+overlay per environment. Type these four files (what you push to Gitea):
 
 `part4/4.7/config/base/kustomization.yaml`
 
@@ -380,7 +372,7 @@ resources:
   - service.yaml
 ```
 
-`part4/4.7/config/base/deployment.yaml` — note `PROJECT/IMAGE`, a placeholder the overlay replaces:
+`part4/4.7/config/base/deployment.yaml`: note `PROJECT/IMAGE`, a placeholder the overlay replaces:
 
 ```yaml
 apiVersion: apps/v1
@@ -429,8 +421,8 @@ spec:
       targetPort: 3000
 ```
 
-`part4/4.7/config/overlays/prod/kustomization.yaml` — it refers to the base, renames
-everything with a prefix, chooses the namespace and fills in the real image:
+`part4/4.7/config/overlays/prod/kustomization.yaml`: it refers to the base, renames
+everything with a prefix, picks the namespace and fills in the real image:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -445,7 +437,7 @@ images:
     newTag: "4.7"
 ```
 
-Render it before pushing — Kustomize is the thing that decides what ArgoCD will see:
+Render it before pushing; Kustomize decides what ArgoCD will see:
 
 ```bash
 cd part4/4.7/config
@@ -461,9 +453,9 @@ git push -u gitea main
 ![Gitea's activity feed: gitops created the repository and pushed to main](./assets/image2.png)
 ![The gitops/config repository with its one commit, base + prod overlay](./assets/image3.png)
 
-That push also creates the repository: Gitea accepts the first push as the repository's
-creation. Two things must be true before going on, because an `Application` pointing at a
-repository that does not exist — or that ArgoCD is not allowed to read — shows `Unknown`
+That push also creates the repository: Gitea accepts the first push as its creation.
+Two things must be true before going on, because an `Application` pointing at a
+repository that does not exist, or that ArgoCD cannot read, shows `Unknown`
 with *"failed to list refs: authentication required: Unauthorized"*:
 
 ```bash
@@ -475,9 +467,9 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/v1/repos/gito
 200
 ```
 
-`404` here means the repository is **private** — and a push-created repository can come out
+`404` here means the repository is **private**, and a push-created one can come out
 private even with `DEFAULT_PRIVATE=public` set. Flip it over the API with the account from
-Step 3, or with **Settings → Make public** in the UI:
+Step 3, or with **Settings → Make public**:
 
 ```bash
 curl -s -X PATCH -u gitops:gitops-lab47 -H "Content-Type: application/json" \
@@ -489,18 +481,17 @@ curl -s -X PATCH -u gitops:gitops-lab47 -H "Content-Type: application/json" \
   "private": false,
 ```
 
-Then run the check again: `200` is what ArgoCD needs, and a public repository is what keeps
-this lab free of credentials.
+Then run the check again: `200` is what ArgoCD needs, and a public repository keeps
+the lab free of credentials.
 
 ---
 
 ## Step 6 — the Application: first in the UI, then in YAML
 
 ArgoCD does nothing by itself. An `Application` says *which repository, which path, which
-cluster, which namespace* — and you can meet that object in the UI before writing it.
+cluster, which namespace*, and you can meet it in the UI before writing it.
 
-**Creating it by hand.** With the UI open (Step 4), press **+ NEW APP** at the top and
-fill the panel in:
+**Creating it by hand.** With the UI open (Step 4), press **+ NEW APP** and fill it in:
 
 - **General** — Application Name `log-output`, Project `default`, **Sync Policy**
   **Automatic** — tick **ENABLE AUTO-SYNC**, then **PRUNE RESOURCES** and **SELF HEAL**
@@ -510,34 +501,33 @@ fill the panel in:
   Path `overlays/prod`;
 - **Destination** — Cluster URL `https://kubernetes.default.svc` (in-cluster),
   Namespace `prod`. Under **SYNC OPTIONS** also tick **AUTO-CREATE NAMESPACE**: the `prod`
-  namespace does not exist yet, and the YAML says the same thing as `CreateNamespace=true`.
+  namespace does not exist yet, and the YAML says the same as `CreateNamespace=true`.
 
 ![The NEW APP form for log-output, with Auto-Sync, Prune and Self Heal ticked](./assets/image4.png)
 
 Press **CREATE**. The card appears as `OutOfSync` and turns `Synced`, `Progressing`
-becomes `Healthy` — the app is running, and you never touched `kubectl`.
+becomes `Healthy`: the app is running, and you never touched `kubectl`.
 
 ![The log-output card in ArgoCD: Synced and Healthy](./assets/image5.png)
 
 ![The resource tree: the Service, the Deployment and its pod, all green](./assets/image6.png)
 
-**Reading it — the four places worth knowing.**
+**Reading it: the four places worth knowing.**
 
-- **The two badges** at the top of the app card: *Sync Status* (`Synced` = the cluster
-  matches the repository) and *Health* (`Healthy` = the workloads are actually up). From
-  the terminal, the same information:
+- **The two badges** at the top of the card: *Sync Status* (`Synced` = the cluster
+  matches the repository) and *Health* (`Healthy` = the workloads are up). From
+  the terminal, the same:
 
 ```bash
 kubectl -n argocd get application log-output
 ```
 
-  If both are **blank**, nothing is reconciling: the `argocd-application-controller` pod is
-  what fills them in, so check `kubectl -n argocd get pods` before wondering about the
-  application.
+  If both are **blank**, nothing is reconciling: the `argocd-application-controller` pod
+  fills them in, so check `kubectl -n argocd get pods` first.
 
 - **The resource tree** (the app's graph view): `Deployment → ReplicaSet → Pod`, each node
-  with its own status. The Deployment node shows the replicas that are ready, e.g. `1/1`,
-  with the pods underneath it. The two ways to ask "how many are running?":
+  with its own status. The Deployment node shows the replicas ready (`1/1`, say) with the
+  pods underneath. Two ways to ask what is running:
 
 ```bash
 kubectl -n prod get deploy,rs,pods
@@ -549,16 +539,16 @@ kubectl -n prod get deploy prod-log-output-dep \
 
 - **SYNC and REFRESH** (top of the app): *Refresh* re-reads the repository now instead of
   waiting for the next poll, *Sync* reconciles immediately, *Hard Refresh* also drops
-  ArgoCD's cached manifests. None of them changes the repository — they only make ArgoCD
-  notice it sooner.
+  ArgoCD's cached manifests. None changes the repository; they only make ArgoCD notice
+  sooner.
 
 - **HISTORY AND ROLLBACK** (in the app's panel): one entry per revision ArgoCD has
   deployed. A rollback re-deploys an older revision, which with `selfHeal` on lasts
-  exactly until the next sync restores the repository's version. The durable "rollback"
-  is a revert commit — that is the point of all this.
+  only until the next sync restores the repository's version. The durable "rollback"
+  is a revert commit.
 
 **The same object, from a file.** The UI just wrote an object into the cluster; in a
-repository you write it yourself, which is what the chapter's exercises expect. Delete the
+repository you write it yourself, as the chapter's exercises expect. Delete the
 UI-made app first so the two do not collide:
 
 ```bash
@@ -602,15 +592,15 @@ NAME         SYNC STATUS   HEALTH STATUS
 log-output   Synced        Healthy
 ```
 
-Two fields are the whole GitOps contract:
+Two fields are the GitOps contract:
 
-- `automated.prune` — an object deleted from the repository is deleted from the cluster;
-- `automated.selfHeal` — a change made *by hand* in the cluster is reverted to what the
-  repository says.
+- `automated.prune`: an object deleted from the repository is deleted from the cluster;
+- `automated.selfHeal`: a change made *by hand* in the cluster is reverted to the
+  repository's version.
 
-In the UI, the app's tree shows what the chapter explains: a **Deployment** that owns a
-**ReplicaSet**, which owns the **Pods** — the ReplicaSet is the level that keeps the
-promised number of pods alive, which is why deleting a pod changes nothing in Git.
+In the UI, the app's tree shows what the chapter explains: a **Deployment** owns a
+**ReplicaSet**, which owns the **Pods**. The ReplicaSet keeps the promised number of pods
+alive, so deleting a pod changes nothing in Git.
 
 ```bash
 kubectl -n prod get pods
@@ -627,7 +617,7 @@ version: <b>v1</b>
 ## Step 7 — the two proofs
 
 **A commit is the only thing that changes the cluster.** Edit the overlay to release
-`v2` — one more patch file, which changes only what differs from the base:
+`v2`: one more patch file, changing only what differs from the base:
 
 `part4/4.7/config/overlays/prod/deployment.yaml`
 
@@ -646,7 +636,7 @@ spec:
               value: v2
 ```
 
-and reference it in the overlay — the whole file now:
+and reference it in the overlay, the whole file now:
 
 `part4/4.7/config/overlays/prod/kustomization.yaml`
 
@@ -670,8 +660,8 @@ cd part4/4.7/config
 git add -A && git commit -m "release v2" && git push gitea main
 ```
 
-ArgoCD polls the repository — its default interval is 180 seconds, so this takes a
-couple of minutes unless you press **Refresh** in the UI. Watch it happen:
+ArgoCD polls the repository; its default interval is 180 seconds, so this takes a
+couple of minutes unless you press **Refresh**. Watch it happen:
 
 ![The application after the v2 commit, the Deployment rolling out a new ReplicaSet](./assets/image8.png)
 ![Synced to HEAD 33bf607 — the release commit, deployed without anyone touching the cluster](./assets/image9.png)
@@ -687,12 +677,12 @@ curl -s localhost:3001/ | grep -o "version: <b>[^<]*</b>"
 version: <b>v2</b>
 ```
 
-In the UI, that release is a sequence worth watching: the app turns `OutOfSync`, the
+In the UI, the release is a sequence worth watching: the app turns `OutOfSync`, the
 Deployment node spins a new ReplicaSet and pod, and the card settles back to `Synced` /
-`Healthy`. If nothing happens within a few minutes, press **REFRESH** — the poll interval
-is what you are waiting for, not a failure.
+`Healthy`. If nothing happens within a few minutes, press **REFRESH**: you are waiting
+for the poll, not a failure.
 
-**A hand-made change is undone.** This is `selfHeal`, and it is the difference between a
+**A hand-made change is undone.** This is `selfHeal`, the difference between a
 deployment tool and a state machine:
 
 ```bash
@@ -706,17 +696,17 @@ kubectl -n prod get deploy prod-log-output-dep   # one again
 
 The UI shows it too: the app goes `OutOfSync`, the tree grows five pods, and the extra
 pods terminate when the next poll arrives. `kubectl edit` on an image or an env var
-behaves the same way — the next reconciliation restores the repository's version. The way
-to change the cluster is to change the repository.
+behaves the same: the next reconciliation restores the repository's version. To
+change the cluster, change the repository.
 
 ---
 
 ## Step 8 — the pipeline that commits for you
 
 The chapter's workflow builds the image, bumps the tag in `kustomization.yaml` with
-`kustomize edit set image`, and commits that change back to the repository — which is
-what triggers ArgoCD. Since CI already knows how to publish to Artifact Registry (3.6),
-the only new pieces are the last two steps:
+`kustomize edit set image`, and commits that change back to the repository, which
+triggers ArgoCD. Since CI already publishes to Artifact Registry (3.6),
+only the last two steps are new:
 
 `part4/4.7/.github/workflows/release.yaml`
 
@@ -771,17 +761,16 @@ jobs:
 > **Where the file has to live.** GitHub only runs workflows from `.github/workflows` at
 > the **root** of the repository (the docs are explicit: *"You must store workflow files in
 > the `.github/workflows` directory of your repository"*). A `.github/workflows/release.yaml`
-> inside `part4/4.7/` is therefore inert — it is documentation. That is on purpose: this
-> lab's loop is driven by hand, and the file shows what CI would do instead.
+> inside `part4/4.7/` is therefore inert: it is documentation, on purpose, since
+> this lab's loop is driven by hand.
 >
-> This workflow commits into *this* GitHub repository, which ArgoCD cannot read — so in
-> this lab you do its two interesting steps by hand: `kustomize edit set image …` and
+> This workflow commits into *this* GitHub repository, which ArgoCD cannot read, so here
+> you do its two interesting steps by hand: `kustomize edit set image …` and
 > `git push`. On a cluster that can reach GitHub, the same workflow with `repoURL`
-> pointing at the repository is all it takes, and that is precisely what the chapter
-> builds.
+> pointing at the repository is all it takes, as the chapter builds.
 
-The one thing to notice about the shape: **CI never talks to the cluster.** It publishes
-an image and writes a line of YAML. Deployment belongs to the thing that owns the state.
+The shape is the point: **CI never talks to the cluster.** It publishes an image and
+writes a line of YAML. Deployment belongs to the thing that owns the state.
 
 ---
 
@@ -804,15 +793,15 @@ The applications' CRDs are removed by the manifest; the ones belonging to Argo
 
 - **Push and pull solve different problems.** A pipeline that pushes needs credentials
   for your cluster and cannot reach one that is not exposed; a cluster that pulls needs
-  only a repository it can read.
-- **The repository is the state, so drift is a bug.** `selfHeal` and `prune` are what
-  turn "we deploy from Git" into "the cluster *is* Git".
-- **Kustomize keeps the environments honest.** A base with the differences as overlays —
-  a prefix, a namespace, an image, a patched env var — is how prod and staging stay
+  only a readable repository.
+- **The repository is the state, so drift is a bug.** `selfHeal` and `prune` turn
+  "we deploy from Git" into "the cluster *is* Git".
+- **Kustomize keeps the environments honest.** A base with the differences as overlays
+  (a prefix, a namespace, an image, a patched env var) is how prod and staging stay
   recognisably the same app.
-- **Secrets stay outside.** The chapter's 4.9 assumes it, and it is the standard split:
+- **Secrets stay outside.** The chapter's 4.9 assumes it, the standard split:
   ArgoCD reconciles configuration, not credentials.
-- **What you cannot reach shapes the design — and repairing it shapes it back.** The
+- **What you cannot reach shapes the design, and repairing it shapes it back.** The
   chapter's repository is on GitHub; this cluster could not reach it, so the repository runs
   inside it. 4.8 fixes the cause instead (one NAT) and the *same* `Application` then reads
-  GitHub. Knowing *why* the design changed is worth more than following the instructions.
+  GitHub. Knowing *why* the design changed beats following the instructions.

@@ -1,9 +1,9 @@
 # Exercise 3.10 — The project, step 18: scheduled Postgres backup to Google Object Storage
 
-> In part 2 (2.9) we already had a CronJob and, in the project, a `pg_dump`
-> backup Job — but the backup was **thrown away** (nowhere saved). This lab
-> wires the backup to **Google Object Storage** (GCS): a CronJob dumps the
-> todo database **once per 24 hours** and uploads the file to a bucket.
+> In part 2 (2.9) we already had a CronJob and a `pg_dump` backup Job, but
+> the backup was **thrown away**. This lab wires it to **Google Object
+> Storage** (GCS): a CronJob dumps the todo database **once per 24 hours**
+> and uploads the file to a bucket.
 
 ## Goal
 
@@ -15,17 +15,16 @@
       runs every 24h (schedule "15 3 * * *" = 03:15 daily, your pick)
 ```
 
-Two ways to give the CronJob write access — the course offers both:
+Two ways to give the CronJob write access:
 
 1. **A JSON key of a dedicated Service Account** (`my-storage-sa`) mounted
-   into the pod through a Secret (Step 1 below). The course warns:
-   *"Remember not to store the secret or [key] in GitHub!"* → the key lives
-   only in the cluster, never in the repo.
-2. **Workload Identity** — the pod authenticates as *itself*: no key, no
-   Secret. This is the approach the course *recommends* ("authenticate to
-   Google Cloud APIs from GKE workloads"), and in **our** GCP org it is the
-   only one that works — the org blocks service-account keys (⚠️ section
-   below). The manifest in Step 2 is the Workload Identity version.
+   through a Secret (Step 1). The course warns *"Remember not to store the
+   secret or [key] in GitHub!"*, so the key lives only in the cluster.
+2. **Workload Identity**: the pod authenticates as *itself*, no key or
+   Secret. The course *recommends* this ("authenticate to Google Cloud APIs
+   from GKE workloads"), and in **our** org it is the only approach that
+   works, because the org blocks service-account keys (⚠️ below). Step 2
+   uses it.
 
 ---
 
@@ -67,9 +66,8 @@ rm /tmp/key.json
 ```
 
 > `storage.objectCreator` lets the SA **create** objects (upload); the
-> `objectViewer` (read) is optional but handy for listing/testing. The
-> bucket does NOT need per-object ACLs — the SA is allowed at the project
-> level.
+> `objectViewer` (read) is optional for listing/testing. The bucket needs no
+> per-object ACLs: the SA is allowed at the project level.
 
 ### ⚠️ If the org blocks service-account keys → use Workload Identity
 
@@ -81,10 +79,10 @@ FAILED_PRECONDITION: Key creation is not allowed on this service account.
   type: constraints/iam.disableServiceAccountKeyCreation
 ```
 
-You can't override it without org-admin rights → drop the key path entirely
-and use the approach the course *recommends*: authenticate to Google Cloud
-APIs from GKE workloads (Workload Identity) — the pod gets credentials from
-the GKE metadata server, no key file anywhere:
+You can't override it without org-admin rights → drop the key path and use
+the course's *recommended* approach: authenticate to Google Cloud APIs from
+GKE workloads (Workload Identity), where the pod gets credentials from the
+GKE metadata server, no key file anywhere:
 
 ```bash
 P=dwk-gke-506208
@@ -111,8 +109,8 @@ gcloud projects add-iam-policy-binding $P \
 Then the CronJob changes in Step 2:
 - add `serviceAccountName: backup-sa` under `spec.jobTemplate.spec.template.spec`
 - **delete** the `sa-key` volume, its volumeMount, and the
-  `GOOGLE_APPLICATION_CREDENTIALS` env — gsutil picks the credential up from
-  the metadata server automatically.
+  `GOOGLE_APPLICATION_CREDENTIALS` env; gsutil then picks the credential up
+  from the metadata server.
 
 ---
 
@@ -172,23 +170,22 @@ spec:
                   mountPath: /scratch
 ```
 
-> The two containers run in the same pod and share `/scratch` (emptyDir).
-> `dump` finishes pg_dump → touches `done`; `upload` polls for the marker,
-> then pushes with gsutil. If the dump fails, the Job fails (`OnFailure`)
-> without uploading garbage.
+> The two containers share `/scratch` (emptyDir): `dump` runs pg_dump then
+> touches `done`, and `upload` polls for the marker and pushes with gsutil.
+> If the dump fails the Job fails (`OnFailure`) rather than uploading garbage.
 >
-> **No key, no Secret.** Because the org blocks SA keys (see above), the
-> upload container authenticates with the pod's own workload identity:
-> `serviceAccountName: backup-sa` → the GKE metadata server hands gsutil a
-> short-lived federated token for the `backup-sa` principal.
+> **No key, no Secret.** Because the org blocks SA keys (above), the upload
+> container authenticates with the pod's own workload identity:
+> `serviceAccountName: backup-sa` makes the GKE metadata server hand gsutil
+> a short-lived federated token.
 >
 > ⚠️ Image path: `gcr.io/google-containers/cloud-sdk` **does not exist**
-> (ImagePullBackOff) — the cloud-sdk image lives under
+> (ImagePullBackOff); the cloud-sdk image lives under
 > `gcr.io/google.com/cloudsdktool/`.
 
 > The course's "simpler way" (mount a JSON key of `my-storage-sa` as a
-> Secret) is what Step 1 above describes — keep it for reference: on a
-> GCP org *without* the key restriction, it is fewer moving parts.
+> Secret) is Step 1 above; on an org *without* the key restriction it is
+> fewer moving parts.
 
 ---
 
@@ -236,6 +233,6 @@ kubectl delete serviceaccount backup-sa -n project        # WIF path
 gsutil rm -r gs://dwk-todo-backups-tripplen23
 ```
 
-> Leave the cluster-side Workload Identity settings alone (workload pool +
-> `GKE_METADATA`) — other workloads/tooling may rely on them, and they cost
+> Leave the cluster-side Workload Identity settings (workload pool +
+> `GKE_METADATA`) alone: other workloads may rely on them, and they cost
 > nothing.

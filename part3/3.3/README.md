@@ -11,10 +11,9 @@
 
 ## Knowledge: Gateway API (Chapter 4 — "New kid in the block: Gateway API")
 
-The **Gateway API** is a set of resources/standards that define how
-**external traffic** should be routed to services inside the cluster. It
-builds on the Ingress concept but is more capable (complex routing, traffic
-management). It has three key resources:
+The **Gateway API** is a set of resources/standards defining how **external
+traffic** is routed to services in the cluster. It builds on Ingress but is
+more capable (routing, traffic management), with three key resources:
 
 ```
 GatewayClass  ──defines a TYPE of gateway── (who implements it)
@@ -35,32 +34,29 @@ HTTPRoute  ──defines the ROUTING RULES──
 
 ### Changes vs the Ingress lab (3.2)
 
-- **Ingress** → **Gateway + HTTPRoute** (two resources instead of one).
-- **Service type: `ClusterIP`** (in 3.2 we used NodePort for GKE Ingress;
-  the Gateway API controller accepts ClusterIP services) — the material
-  explicitly says *"We still need to change the Service port type to
-  ClusterIP."*
-- Gateway CRDs come from GKE — enable them on the cluster
-  (`--gateway-api=standard`).
+- **Ingress** → **Gateway + HTTPRoute** (two resources).
+- **Service type: `ClusterIP`** (3.2 used NodePort for GKE Ingress; the
+  Gateway API controller accepts ClusterIP). The material says so: *"We
+  still need to change the Service port type to ClusterIP."*
+- Gateway CRDs come from GKE; enable them with `--gateway-api=standard`.
 
 ### GKE specifics
 
 - Enable Gateway API once per cluster:
   `gcloud container clusters update dwk-cluster --location=europe-north1-b --gateway-api=standard`
-  (takes a few minutes; gives you `gateway.networking.k8s.io` CRDs).
-- GKE provides GatewayClasses; the recommended one for an external L7 LB:
+  (a few minutes; installs the `gateway.networking.k8s.io` CRDs).
+- GKE provides GatewayClasses; for an external L7 LB use
   `gke-l7-global-external-managed`.
-- The **Gateway** address (external IP) appears in
-  `kubectl get gateway my-gateway` → `ADDRESS` + `PROGRAMMED True` once the
-  LB is ready (takes a few minutes).
-- Health checks still hit `/` on each backend (`kubectl describe gateway`
-  is a useful diagnostic).
+- The **Gateway** address appears in `kubectl get gateway my-gateway` →
+  `ADDRESS` + `PROGRAMMED True` once the LB is ready (a few minutes).
+- Health checks still hit `/` on each backend; `kubectl describe gateway`
+  is a useful diagnostic.
 
 ## Step 1 — create the GKE cluster + enable Gateway API
 
 ### 1a. Create the cluster (private nodes — org-policy safe)
 
-> Org policy `compute.vmExternalIpAccess` denies external IPs on VMs →
+> Org policy `compute.vmExternalIpAccess` bars external IPs on VMs, so
 > normal nodes fail creation. Use **private nodes** (no public IP).
 
 ```bash
@@ -71,8 +67,8 @@ gcloud container clusters create dwk-cluster \
   --project=dwk-gke-506208
 ```
 
-Wait for `STATUS: RUNNING`. Then the two required fixes (persisted at
-project level after the first time, but run if re-creating):
+Wait for `STATUS: RUNNING`, then the two fixes (they persist at project
+level; rerun when re-creating):
 
 ```bash
 gcloud container clusters update dwk-cluster --zone=europe-north1-b \
@@ -92,9 +88,9 @@ gcloud container clusters update dwk-cluster \
 ```
 
 This installs the `gateway.networking.k8s.io` CRDs (GatewayClass, Gateway,
-HTTPRoute). It takes a few minutes — be patient.
+HTTPRoute); it takes a few minutes.
 
-Check the provider-provided GatewayClasses:
+Check the provider's GatewayClasses:
 
 ```bash
 kubectl get gatewayclass
@@ -132,7 +128,7 @@ kubectl get pods        # ping-pong, log-output all Running
 kubectl get svc         # both ClusterIP
 ```
 
-Watch the Gateway get its external IP (takes a few minutes):
+Watch the Gateway get its external IP (a few minutes):
 
 ```bash
 kubectl get gateway my-gateway
@@ -145,7 +141,7 @@ kubectl get httproute my-route        # Accepted=True
 ![alt text](assets/image1.png)
 ![alt text](assets/image2.png)
 
-Then open the gateway address in the browser:
+Then open the gateway address:
 
 | Path | Expected |
 |---|---|
@@ -161,8 +157,8 @@ curl http://<GATEWAY-IP>/           # log output + Ping / Pongs: 2
 ![alt text](assets/image3.png)
 ![alt text](assets/image4.png)
 
-> It can take a while until the gateway is set up and the IP starts
-> responding — the material warns about it.
+> The gateway and its IP can take a while to respond, as the material
+> warns.
 
 ---
 
@@ -188,11 +184,12 @@ gcloud compute addresses list
 ## P/S:
 
 1. **Gateway API = 3 resources** (GatewayClass → Gateway → HTTPRoute) vs
-   the single Ingress — it's the next-gen, more flexible alternative.
-2. **GatewayClass is provider-owned**; on GKE: `gke-l7-global-external-managed`.
+   one Ingress; more flexible.
+2. **GatewayClass is provider-owned**; on GKE,
+   `gke-l7-global-external-managed`.
 3. **Gateway** = where to listen (IPs/hostnames/ports); **HTTPRoute** = how
    to route (paths → services).
-4. **Services back to ClusterIP** with Gateway API (vs NodePort for the GKE
-   Ingress) — the material calls this out explicitly.
+4. **Services back to ClusterIP** with Gateway API (vs NodePort for GKE
+   Ingress); the material says so.
 5. Enable `--gateway-api=standard` **once per cluster**; CRDs arrive slowly.
-6. **Delete the cluster when idle** — GKE bills per node/hour + the LB.
+6. **Delete the cluster when idle**; GKE bills per node/hour + the LB.

@@ -1,10 +1,10 @@
 # 5.3 — Log app, the Service Mesh Edition
 
-The lab carries the three apps (the log app and ping-pong from part 2, plus the new greeter), the manifests, and the receipts from this run.
+The lab carries the three apps (the log app and ping-pong from part 2, plus the new greeter), the manifests, and this run's receipts.
 
 ## Step 0 — the cluster and the mesh
 
-What this run needs on the machine: `docker`, `k3d`, `kubectl`, `helm` (Step 6) and `python3` (the one `-o json |
+What this run needs: `docker`, `k3d`, `kubectl`, `helm` (Step 6) and `python3` (the one `-o json |
 python3` receipt in Step 4).
 
 ```bash
@@ -24,9 +24,9 @@ istioctl install --set profile=ambient --set values.global.platform=k3d \
   --skip-confirmation
 ```
 
-Standing in this lab folder, `export PATH=$PWD/istio-1.31.1/bin:$PATH` is the one line that cannot work: there is no
+Standing in this lab folder, `export PATH=$PWD/istio-1.31.1/bin:$PATH` cannot work: there is no
 release directory here, and the next command fails with `istioctl: command not found`. Any release outside `$HOME`
-misses the line above the same way. Use the real path, or link the binary once (most distros keep `~/.local/bin` on
+misses it the same way. Use the real path, or link the binary once (most distros keep `~/.local/bin` on
 `PATH`):
 
 ```bash
@@ -51,8 +51,8 @@ ztunnel-h7nxr            1/1     Running   0          13s
 ztunnel-r9wg4            1/1     Running   0          13s
 ```
 
-The apps live in their own namespace, and one label is what puts them in the mesh. Nothing is added to the pods:
-they keep their container count, the node agent picks them up.
+The apps live in their own namespace, and one label puts them in the mesh. Nothing is added to the pods: they keep
+their container count and the node agent picks them up.
 
 `manifests/namespace.yaml`
 
@@ -75,7 +75,7 @@ kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/re
 kubectl apply -f manifests/namespace.yaml
 ```
 
-Both before anything else: the Gateway and HTTPRoute manifests in Steps 3–4 are Gateway API objects and cannot be applied until those CRDs exist, and every object that follows lands in `exercises`. Skip the second command and the next namespaced apply fails once per object — five times for `greeter.yaml` alone:
+Before anything else: the Gateway and HTTPRoute manifests in Steps 3–4 are Gateway API objects, so they need those CRDs first, and every object that follows lands in `exercises`. Skip the second command and the next namespaced apply fails once per object, five times for `greeter.yaml`:
 
 ```console
 $ kubectl apply -f manifests/greeter.yaml
@@ -100,7 +100,7 @@ k3d image import log-output:5.3 greeter:5.3 ping-pong:5.3 -c istio
 INFO[0009] Successfully imported 3 image(s) into 1 cluster(s)
 ```
 
-The two apps that come straight from part 2 go up first — their YAML is below:
+The two apps from part 2 go up first — their YAML is below:
 
 ```bash
 kubectl apply -f manifests/configmap.yaml -f manifests/ping-pong.yaml -f manifests/log-output.yaml
@@ -177,7 +177,7 @@ spec:
 
 ## Step 2 — three Services for one name
 
-The exercise's hint is easy to misread, so it is worth saying plainly: the greeter needs **three** Services. One is the name the app calls and the one the HTTPRoute hangs off; the other two are the backends the route weighs against each other. A Service can only be a backend for a route if it exists, so `greeter-svc-1` and `greeter-svc-2` are real objects, each selecting one version's pods.
+The exercise's hint is easy to misread: the greeter needs **three** Services. One carries the name the app calls and the HTTPRoute hangs off; the other two are the backends the route weighs against each other. A Service can back a route only if it exists, so `greeter-svc-1` and `greeter-svc-2` are real objects, each selecting one version's pods.
 
 `manifests/greeter.yaml`
 
@@ -315,10 +315,10 @@ Applying it:
 kubectl apply -f manifests/greeter.yaml
 ```
 
-The `istio.io/use-waypoint` label on `greeter-svc` names a waypoint that does not exist yet — Step 3 creates it. Until
-then there is no proxy in front of this Service, so do not read a failure here as a broken app.
+The `istio.io/use-waypoint` label on `greeter-svc` names a waypoint that does not exist yet; Step 3 creates it. Until
+then there is no proxy in front of this Service, so a failure here is not a broken app.
 
-Note what `greeter-svc` selects: `app: greeter`, i.e. **both** versions. Its endpoints are therefore the two pods, which is exactly what makes the Step 5 experiment work — with the waypoint in the path the route decides between the two backend Services, and without it nothing does:
+Note what `greeter-svc` selects: `app: greeter`, i.e. **both** versions. Its endpoints are the two pods, which is what makes the Step 5 experiment work: with the waypoint in the path the route decides between the backend Services, and without it nothing does:
 
 ```console
 $ kubectl get endpoints -n exercises greeter-svc greeter-svc-1 greeter-svc-2
@@ -330,8 +330,8 @@ greeter-svc-2   10.42.0.7:3000                  66s
 
 ## Step 3 — the waypoint
 
-Here is the part that is easy to skip and impossible to fake. `istioctl ztunnel-config workloads` prints a
-`PROTOCOL` column, and it is honest about what ambient gives you by default:
+This part is easy to skip and impossible to fake. `istioctl ztunnel-config workloads` prints a
+`PROTOCOL` column, honest about what ambient gives you by default:
 
 ```console
 NAMESPACE    POD NAME                                ADDRESS    NODE               WAYPOINT PROTOCOL
@@ -343,7 +343,7 @@ exercises    greeter-waypoint-d876cb959-75tcf        10.42.0.5  k3d-istio-agent-
 ```
 
 The pods are in the mesh (`HBONE`), but that is a TCP tunnel between node agents. Nothing in that path reads an HTTP
-request, so nothing in it could choose between `greeter-svc-1` and `greeter-svc-2` — the waypoint is what turns the
+request, so nothing could choose between `greeter-svc-1` and `greeter-svc-2`; the waypoint turns the
 L4 tunnel into an L7 hop.
 
 ```bash
@@ -354,8 +354,8 @@ istioctl waypoint apply -n exercises --name greeter-waypoint
 ✅ waypoint exercises/greeter-waypoint applied
 ```
 
-The command writes a Gateway object; this is it as the cluster stores it, `allowedRoutes` included — worth diffing
-against anything you write by hand:
+The command writes a Gateway object; this is it as the cluster stores it, `allowedRoutes` included, worth diffing
+against anything written by hand:
 
 `manifests/greeter-waypoint.yaml`
 
@@ -385,8 +385,7 @@ spec:
 kubectl apply -f manifests/greeter-waypoint.yaml
 ```
 
-Applying that file after the command reports `configured` rather than `created`, and kubectl adds a warning on the
-way: the object was born from `istioctl`, so it has no `last-applied-configuration` annotation for `apply` to diff
+Applying that file after the command reports `configured` rather than `created`, and kubectl warns: the object was born from `istioctl`, so `apply` has no `last-applied-configuration` annotation to diff
 against. It patches the annotation in and carries on.
 
 The waypoint is up when its Gateway says so:
@@ -400,7 +399,7 @@ ResolvedRefs=True ResolvedRefs
 
 ## Step 4 — the route, and where the weights actually live
 
-The HTTPRoute is attached to a **Service**, not to a Gateway: this route is for calls inside the mesh, and it is the waypoint that enforces it. The `group: ""` and `kind: Service` lines are what say so.
+The HTTPRoute is attached to a **Service**, not a Gateway: this route is for calls inside the mesh, and the waypoint enforces it. `group: ""` and `kind: Service` say so.
 
 `manifests/greeter-route.yaml`
 
@@ -433,8 +432,7 @@ spec:
 kubectl apply -f manifests/greeter-route.yaml
 ```
 
-The route reports that it found the waypoint, and the weights are then visible in the waypoint's own Envoy config —
-this is the receipt that the split is configured, not merely requested:
+The route reports that it found the waypoint, and the weights are then visible in the waypoint's own Envoy config: the receipt that the split is configured, not just requested:
 
 ```console
 $ kubectl get httproute -n exercises greeter-route -o jsonpath='{range .status.parents[*]}{.parentRef.name}: {range .conditions[*]}{.type}={.status} {.reason}{"\n"}{end}{end}'
@@ -496,7 +494,7 @@ spec:
 kubectl apply -f manifests/gateway.yaml
 ```
 
-All eight files at once — valid here only because Steps 0–3 have already created the namespace, the CRDs and the other objects; kubectl applies a directory in filename order, so this is not a bootstrap:
+All eight files at once, valid only because Steps 0–3 created the namespace, the CRDs and the rest; kubectl applies a directory in filename order, so this is no bootstrap:
 
 ```bash
 kubectl apply -f manifests/
@@ -515,7 +513,7 @@ ping-pong-7d849644b-6998s            1/1     Running   0          26s
 
 ## Step 5 — the measurement
 
-To keep this free of port-forwards, the requests were made from a throwaway pod inside the same namespace — which is also inside the mesh, so the path is the real one:
+To keep this free of port-forwards, the requests came from a throwaway pod in the same namespace, itself in the mesh, so the path is real:
 
 ```bash
 kubectl -n exercises delete pod tmp-curl --ignore-not-found
@@ -524,7 +522,7 @@ kubectl -n exercises wait --for=condition=Ready pod/tmp-curl --timeout=120s
 kubectl -n exercises exec tmp-curl -- sh -c 'for i in $(seq 1 100); do curl -s http://greeter-svc:3000/; echo; done' | sort | uniq -c
 ```
 
-The `sleep` is the pod's expiry date: once it ends the pod is `Completed`, and everything asked of it afterwards fails differently — `run` answers `AlreadyExists`, the `wait` times out (a completed pod never becomes Ready), and `exec` says `cannot exec into a container in a completed pod`. One cause, three messages, and `delete --ignore-not-found` in front of `run` is the answer to all of them: the block stays re-runnable, including the next day, when yesterday's pod is still sitting there. `-n exercises` belongs on the deletes too — without it, `kubectl delete pods tmp-curl` deletes in `default` and answers `NotFound` while the pod it was aimed at is untouched.
+The `sleep` is the pod's expiry date: once it ends the pod is `Completed`, and everything asked afterwards fails differently: `run` answers `AlreadyExists`, the `wait` times out (a completed pod never becomes Ready), and `exec` says `cannot exec into a container in a completed pod`. One cause, three messages, and `delete --ignore-not-found` before `run` answers all of them, keeping the block re-runnable even the next day, when yesterday's pod still sits there. `-n exercises` belongs on the deletes too: without it, `kubectl delete pods tmp-curl` targets `default` and answers `NotFound`, leaving the intended pod untouched.
 
 ```console
      76 hello
@@ -533,7 +531,7 @@ The `sleep` is the pod's expiry date: once it ends the pod is `Completed`, and e
 
 That is 76/24 for a 75/25 split — one hundred samples of a weighted coin, and the coin is in the waypoint.
 
-The log app shows the same thing from the inside: every page load makes one call to `greeter-svc`, and the greeting it gets back is in the output with the rest of it.
+The log app shows the same thing from the inside: every page load makes one call to `greeter-svc`, the greeting returning in the output.
 
 ```console
 $ kubectl -n exercises exec tmp-curl -- curl -s http://log-output-svc:3000/
@@ -557,15 +555,15 @@ $ kubectl -n exercises exec tmp-curl -- curl -s -o /dev/null -w "gateway http=%{
 gateway http=200
 ```
 
-The same page from the host, which is where the screenshots come from: the cluster is created with `-p
-'9080:80@loadbalancer'`, so the gateway's port 80 is at <http://localhost:9080/>. Two page loads, two answers:
+The same page from the host, where the screenshots come from: the cluster is created with `-p
+'9080:80@loadbalancer'`, so port 80 is at <http://localhost:9080/>. Two loads, two answers:
 
 ![The log app's page at localhost:9080, its last line reading Greeting: hello](./assets/image2.png)
 ![The same page loaded again, its last line reading Greeting: howdy](./assets/image3.png)
 
 ### The same 100 requests without the waypoint
 
-Take the label off `greeter-svc` and the requests still arrive — `greeter-svc` still has two endpoints, and TCP load balancing spreads over both. What disappears is the 75/25:
+Take the label off `greeter-svc` and requests still arrive: it still has two endpoints, and TCP load balancing spreads over both. The 75/25 disappears:
 
 ```bash
 kubectl -n exercises label svc greeter-svc istio.io/use-waypoint-
@@ -578,7 +576,7 @@ service/greeter-svc unlabeled
      49 howdy
 ```
 
-51/49 is what "the weights are not being applied" looks like. The route object is still there, still `Accepted` — it simply has no Layer 7 proxy to be enforced in. Put the label back and it returns:
+51/49 is what "the weights are not being applied" looks like. The route is still there, still `Accepted`; it simply has no Layer 7 proxy to enforce it in. Put the label back and it returns:
 
 ```bash
 kubectl -n exercises label svc greeter-svc istio.io/use-waypoint=greeter-waypoint
@@ -591,7 +589,7 @@ service/greeter-svc labeled
      16 howdy
 ```
 
-Worth knowing while doing this: `istioctl ztunnel-config workloads` wants the namespace the ztunnel daemonset lives in, not the namespace you are looking at:
+Worth knowing: `istioctl ztunnel-config workloads` wants the namespace the ztunnel daemonset lives in, not yours:
 
 ```console
 $ istioctl ztunnel-config workloads -n exercises
@@ -600,8 +598,8 @@ Error: failed retrieving: daemonsets.apps "ztunnel" not found in the "exercises"
 
 ## Step 6 — Kiali
 
-Kiali is the exercise's own verification tool, and it is installed as in 5.2: Prometheus into `monitoring`, then the
-Kiali addon pointed at it. If both are already running from that lab, skip to the `port-forward` below.
+Kiali is the exercise's own verification tool, installed as in 5.2: Prometheus into `monitoring`, then the
+Kiali addon pointed at it. If both already run, skip to the `port-forward`.
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -616,7 +614,7 @@ kubectl -n istio-system wait --for=condition=Ready pod -l app.kubernetes.io/name
 kubectl port-forward svc/kiali 20001:20001 -n istio-system
 ```
 
-The `wait` is not decoration. `port-forward svc/kiali` picks one of the Service's pods at the moment you run it, and right after `apply` that pod is still being created, so the forward dies with
+The `wait` is not decoration. `port-forward svc/kiali` picks one of the Service's pods when you run it, and right after `apply` that pod is still being created, so the forward dies with
 
 ```console
 error: unable to forward port because pod is not running. Current status=Pending
@@ -626,7 +624,7 @@ which reads like a broken install and is only a race. Wait for the pod, then for
 
 ![Kiali's overview before any traffic is inside the window: 0.0 RPS inbound and outbound](./assets/image.png)
 
-The URL is <http://localhost:20001>. In the graph, the `exercises` namespace should show the log app calling `greeter-svc`, and `greeter-svc` fanning out to `greeter-v1` and `greeter-v2` — the two edges are the split, and their thickness is the ratio. Kiali is quiet until Prometheus has scraped and some traffic has gone through **while it was watching**: the graph is a rate over a window (five minutes by default), so requests made before the Prometheus install do not count, and an empty graph is the expected first sight rather than a broken one. Generate a few dozen requests, or widen the window, and it draws.
+The URL is <http://localhost:20001>. In the graph, `exercises` should show the log app calling `greeter-svc`, which fans out to `greeter-v1` and `greeter-v2`: the edges are the split, their thickness the ratio. Kiali stays quiet until Prometheus has scraped and traffic has gone through **while it was watching**. The graph is a rate over a window (five minutes by default), so requests made before the Prometheus install do not count; an empty graph is the expected first sight, not a broken one. Generate a few dozen requests, or widen the window, and it draws.
 
 ![Kiali's traffic graph for the exercises namespace: the log app calling greeter-svc, which fans out to greeter-v1 and greeter-v2; the panel reads 0.42 RPS, 100% success](./assets/image1.png)
 
@@ -643,7 +641,7 @@ $ kubectl -n exercises exec tmp-curl -- curl -s http://kiali.istio-system:20001/
 [{"name":"default",...,"isAmbient":false}, {"name":"exercises",...,"isAmbient":true,...
 ```
 
-`isAmbient: true` is Kiali saying it knows that namespace is in the mesh. And the ratio it will draw is in Prometheus. The Prometheus image has no `curl`, but it has `wget` — query it from its own pod rather than over a port-forward:
+`isAmbient: true` is Kiali saying it knows that namespace is in the mesh, and the ratio it draws lives in Prometheus. The Prometheus image has no `curl` but does have `wget`, so query it from its own pod, not a port-forward:
 
 ```bash
 POD=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}')
@@ -657,7 +655,7 @@ greeter-svc-2 = 41
 ```
 
 Those are totals, and totals are what an empty graph is *not* about. Kiali draws **rates** over its window, while a
-counter answers differently a minute and an hour into the practice — the same query, two moments:
+counter answers differently a minute and an hour in; the same query, twice:
 
 ```bash
 kubectl -n monitoring exec "$POD" -c prometheus-server -- \
@@ -672,7 +670,7 @@ kubectl -n monitoring exec "$POD" -c prometheus-server -- \
 {} = 1160
 ```
 
-A Prometheus counts from its own first scrape: the 161/41 totals arrived as a starting value, so the graph drew an empty page — no *growth* inside the window, not no data. Send requests while it is watching, then give the receipt time: it scrapes every **1m**, and the function the graph is built on only answers once a few intervals have gone by:
+A Prometheus counts from its own first scrape: the 161/41 totals arrived as a starting value, so the graph drew an empty page: no *growth* in the window, not no data. Send requests while it watches, then give the receipt time: it scrapes every **1m**, and the function behind the graph answers only after a few intervals.
 
 ```bash
 kubectl -n monitoring exec "$POD" -c prometheus-server -- \
@@ -684,8 +682,8 @@ greeter-svc-1 = 0.1833/s
 greeter-svc-2 = 0.0708/s
 ```
 
-— 72/28 of the traffic, the two edges the exercise asks to see. A window spanning several scrape intervals is what belongs in a receipt like this; a narrower one reads 0 while the counters are visibly moving.
+72/28 of the traffic, the two edges the exercise asks to see. A window spanning several scrape intervals belongs in a receipt like this; a narrower one reads 0 while the counters move.
 
 ## P.S.
-- The route's weights are chosen per request, so a `curl` loop is a fair sample of a coin: a hundred samples carry a standard deviation of √(100·0.75·0.25) ≈ 4.3, which is why counts land near 75 rather than on it. One long-lived connection is decided once, and is not a sample at all.
-- `greeter-svc-1` and `greeter-svc-2` exist only to be route backends. Nothing calls them by name; if something does, the split is bypassed entirely and that caller gets one version for as long as it keeps calling that name.
+- The route's weights are chosen per request, so a `curl` loop is a fair sample of a coin: a hundred samples carry a standard deviation of √(100·0.75·0.25) ≈ 4.3, which is why counts land near 75 rather than on it. One long-lived connection is decided once, and is no sample.
+- `greeter-svc-1` and `greeter-svc-2` exist only to be route backends. Nothing calls them by name; if something does, the split is bypassed and that caller gets one version for as long as it keeps calling that name.

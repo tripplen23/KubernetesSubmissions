@@ -18,23 +18,22 @@
 
 What this lab does:
 
-1. **the concept** — a message queue in one page: subjects, publish-subscribe,
-   queues, and what "at most once" means;
-2. **NATS** — the messaging system the chapter uses, installed from its Helm chart
-   with the four images mirrored first;
-3. **the publisher** — the project's todo-backend announces every saved or updated
-   todo on the subject `todo_events`;
-4. **the broadcaster** — a new service that subscribes to that subject inside a
-   **queue group** and forwards each event to a chat webhook;
-5. **the proof** — six replicas forwarding every message exactly once, and the same six replicas without the queue group forwarding it six times;
-6. **the monitoring** — the NATS Prometheus exporter, a scrape job, and the four queries the chapter's dashboard is built from;
-7. **optional: Discord** — the cluster cannot reach a chat service (measured), so the optional step runs one extra broadcaster *outside* the cluster, with the Discord payload shape, straight into a real webhook.
+1. **the concept**: a message queue in one page: subjects, publish-subscribe, queues,
+   and what "at most once" means;
+2. **NATS**: the messaging system the chapter uses, installed from its Helm chart with
+   the four images mirrored;
+3. **the publisher**: todo-backend announces every saved or updated todo on `todo_events`;
+4. **the broadcaster**: a new service subscribing inside a **queue group** and
+   forwarding each event to a chat webhook;
+5. **the proof**: six replicas forwarding every message once, and the same six without the group forwarding it six times;
+6. **the monitoring**: the NATS Prometheus exporter, a scrape job, and the four queries the dashboard is built from;
+7. **optional: Discord**: the cluster cannot reach a chat service (measured), so the step runs one broadcaster *outside* it, with the Discord payload shape, into a real webhook.
 
 ---
 
 ## Step 0 — what you need in front of you
 
-The project running (the pipeline put it there), Helm and a NATS chart:
+The project running (the pipeline put it there), Helm, a NATS chart:
 
 ```bash
 kubectl get pods -n project
@@ -49,35 +48,35 @@ kubectl config set-context --current --namespace=project
 ## Step 1 — the concept, in one page
 
 Two HTTP services have to know where each other live. A message queue removes that:
-one side publishes, the other subscribes, and neither knows who is listening.
+one publishes, the other subscribes, neither knows who listens.
 
-Messages are addressed by **subject**, and there are two ways to subscribe:
+Messages are addressed by **subject**, with two ways to subscribe:
 
-- **publish-subscribe** — every subscriber gets a copy. Six broadcasters on
-  `todo_events` would each forward the same todo: six duplicates, which is what the
-  exercise forbids;
-- **queue group** — subscribers share a group name, and each message reaches exactly
+- **publish-subscribe**: every subscriber gets a copy. Six broadcasters on
+  `todo_events` would each forward the same todo, six duplicates, which the exercise
+  forbids;
+- **queue group**: subscribers share a group name, and each message reaches exactly
   **one** member. Six replicas in the group `broadcasters`: every todo announced
-  once, by whichever replica is free. Add replicas freely — the count does not move.
+  once, by whichever replica is free. Add replicas freely; the count does not move.
 
 The two delivery promises the chapter names:
 
-- **Core NATS is *at most once*** — nobody listening, or a subscriber dying mid-work,
-  and the message is gone. No persistence, no retry. Hence the exercise's tolerance
-  for a missing message;
+- **Core NATS is *at most once***: nobody listening, or a subscriber dying mid-work,
+  and the message is gone, with no persistence or retry. Hence the exercise's
+  tolerance for a missing message;
 - **JetStream** gives *at least once* or *exactly once*, with streams and consumers.
-  Out of scope here — it is the answer when losing a message is not acceptable.
+  Out of scope; it is the answer when losing a message is unacceptable.
 
-The chapter's own example splits a heavy job across a Fetcher, many Mappers and many
-Savers, sharing the load through queue-mode subjects, and keeps the Fetcher single on
-purpose: it holds the record of what is done. This lab is the small version of that —
-one publisher, a scalable group, one sink.
+The chapter's example splits a heavy job across a Fetcher, many Mappers and many
+Savers, sharing the load through queue-mode subjects, and keeps the Fetcher single:
+it holds the record of what is done. This lab is the small version: one publisher, a
+group, one sink.
 
 ---
 
 ## Step 2 — NATS, and the images its chart wants
 
-This cluster cannot reach most of the internet, so mirror the images first:
+This cluster cannot reach most of the internet, so mirror first:
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -99,12 +98,12 @@ docker tag  natsio/nats-box:0.19.7 $R/nats-box:0.19.7
 docker push $R/nats-box:0.19.7
 ```
 
-Four images: three for the chart — the server, the config reloader and the exporter —
-plus `nats-box` for the manual CLI in Step 3. The chart's own nats-box Deployment stays
-switched off, so nothing runs it for you.
+Four images: three for the chart (the server, the config reloader, the exporter),
+plus `nats-box` for the manual CLI in Step 3; the chart's own nats-box Deployment
+stays off.
 
-`part4/4.6/manifests/nats-values.yaml` — the chart with our images and with the
-Prometheus exporter switched on. Mind the key names: the server image lives under
+`part4/4.6/manifests/nats-values.yaml`: the chart with our images and the Prometheus
+exporter switched on. Mind the key names: the server image lives under
 `container.image`, the reloader under `reloader.image`, the exporter under
 `promExporter.image`:
 
@@ -138,8 +137,8 @@ kubectl get pods -n project -l app.kubernetes.io/name=nats
 ![helm install my-nats reports STATUS: deployed, and my-nats-0 comes up 2/3 Running with the reloader sidecar still starting](./assets/image.png)
 
 Three containers in one pod: the NATS server, its config reloader and the Prometheus
-exporter. The chart also creates the headless service `my-nats` — that is the address
-the applications use.
+exporter. The chart also creates the headless service `my-nats`, the address the
+applications use.
 
 ---
 
@@ -153,8 +152,8 @@ The backend publishes one small JSON event per change:
 {"event":"deleted","todo":{"id":7,"title":"buy milk","done":true}}
 ```
 
-Before deploying any of it, watch a subject by hand. One throwaway pod, three
-experiments, and the whole subject/queue-group idea becomes something you have seen.
+Before deploying it, watch a subject by hand: one throwaway pod, three experiments,
+and the idea becomes visible.
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -170,7 +169,7 @@ In the pod, subscribe. It stays attached and prints what arrives; Ctrl-C leaves 
 nats sub -s $N todo_events
 ```
 
-In a second terminal, on your laptop, publish one event the way the backend sends it:
+In a second terminal, publish one event as the backend sends it:
 
 ```bash
 kubectl run natscli2 --restart=Never -n project \
@@ -196,12 +195,12 @@ sleep 15; kubectl logs natscheck -n project; kubectl delete pod natscheck -n pro
 ![the one-shot natscheck pod prints `in the group: 3  outside it: 3` — the two queue-group subscribers split the three messages between them, the ungrouped one received all three](./assets/image4.png)
 
 If your prompt turns into `>` after pasting, you are inside an unclosed quote: Ctrl-C
-and paste the whole line again.
+and paste again.
 
-Three messages. The group received three in total — its two members split them, one
-took two, the other took one. The subscriber outside the group received all three.
-Same subject, same messages, two different answers: that is the queue group, and Step 6
-measures it again on the real Deployment.
+Three messages. The group received three: its two members split them, one
+took two, the other one. The subscriber outside the group received all three.
+Same subject, two different answers: that is the queue group, and Step 6
+measures it on the real Deployment.
 
 ### Experiment 3 — a message nobody is listening for is gone
 
@@ -212,10 +211,10 @@ nats sub -s $N todo_events      # starts listening after the fact: nothing arriv
 
 ![the trap that costs the most time: `nats` run on the laptop answers `Command 'nats' not found` — the CLI exists only inside a nats-box pod](./assets/image5.png)
 
-No persistence and no retry: that is *at most once*, and it is why the exercise only
+No persistence and no retry: that is *at most once*, and why the exercise only
 forbids duplicates.
 
-Take a look now again to the publisher:
+Back to the publisher:
 ![inside the pod: `Subscribing on todo_events`, then the backend's `{"event":"created","todo":{"id":7,"title":"buy milk","done":false}}` followed by the hand-published `one`, `two`, `three`](./assets/image6.png)
 
 ---
@@ -223,7 +222,7 @@ Take a look now again to the publisher:
 ## Step 4 — the broadcaster: subscribe in a queue group, forward to a webhook
 
 A new service, one job: take the event off NATS, turn it into a sentence, POST it to
-the chat service. `part4/4.6/broadcaster/` is that service.
+the chat service. `part4/4.6/broadcaster/` is it.
 
 The interesting line is the subscription:
 
@@ -234,20 +233,19 @@ let mut subscription = nats.queue_subscribe(subject, queue_group).await?;
 
 Everything else follows from it:
 
-- **the payload** — `{"user": "bot", "message": "…"}`, the exercise's "Generic" option.
+- **the payload**: `{"user": "bot", "message": "…"}`, the exercise's "Generic" option.
   `CHAT_FORMAT` swaps in the shape each service wants: `{"content": "…"}` for Discord,
-  `{"text": "…"}` for Slack. Telegram is left out on purpose — a bot token, a chat id
+  `{"text": "…"}` for Slack. Telegram is left out: a bot token, a chat id
   and a `sendMessage` call is a different integration, not a different payload;
 - **it formats, it does not decide.** The backend says what happened; the broadcaster
-  says how a chat service should hear it, so changing the wording never touches the API;
+  says how a chat service hears it, so changing wording never touches the API;
 - **a failed forward is logged, never retried.** Core NATS is at-most-once: when the
-  POST fails, the message is already gone. That is why the exercise forgives a missing
+  POST fails, the message is gone, which is why the exercise forgives a missing
   message and forbids a duplicate.
 
 ### Seeing the three shapes
 
-The sink keeps the exact body it was sent, so the switch is easy to watch. This is a
-local run of the three, one event each:
+The sink keeps the exact body sent. A local run of the three:
 
 ```text
 CHAT_FORMAT=generic ->  {"message": "A todo was created: #42 check the payload", "user": "todo-bot"}
@@ -256,21 +254,20 @@ CHAT_FORMAT=slack   ->  {"text":    "A todo was created: #42 check the payload"}
 ```
 
 In the cluster the same switch is a single `kubectl set env` on the broadcaster
-Deployment — Step 5 deploys it and shows the command, with the receipt from the sink.
+Deployment; Step 5 shows the command, with the receipt from the sink.
 
 ### The chat service (this lab's stand-in)
 
-Discord, Telegram and Slack all need internet access this cluster does not have, so
-the lab uses the exercise's third option — **Generic** — and runs the receiving end
-itself: `part4/4.6/chat-sink/`, a tiny service that keeps every payload it receives
-and can tell you how many it has:
+Discord, Telegram and Slack all need internet access this cluster lacks, so the lab
+uses the exercise's third option (**Generic**): `part4/4.6/chat-sink/`, a tiny service
+that keeps every payload it receives:
 
-- `POST /` — the webhook the broadcaster calls;
-- `GET /messages` — everything received, in order;
-- `GET /count` — just the number;
-- `POST /reset` — forget everything, for the next experiment.
+- `POST /`: the webhook the broadcaster calls;
+- `GET /messages`: everything received, in order;
+- `GET /count`: just the number;
+- `POST /reset`: forget everything, for the next experiment.
 
-That counter is what turns *"no duplicates"* from a claim into a measurement.
+That counter makes *"no duplicates"* measurable.
 
 ---
 
@@ -296,7 +293,7 @@ kubectl rollout status deploy/chat-sink -n project
 kubectl rollout status deploy/broadcaster -n project
 ```
 
-Create a todo and watch the whole chain in three logs:
+Create a todo and watch the chain in three logs:
 
 ```bash
 kubectl run curlbox --restart=Never -n project --image=curlimages/curl:8.11.1 --command -- \
@@ -311,10 +308,10 @@ kubectl logs deploy/chat-sink -n project | grep chat | tail -3
 
 ![the whole chain on one screen: curlbox returns `{"id":4,"title":"say hi in chat","done":false}`, the backend logs `publishing todo events to todo_events on nats://my-nats:4222`, the broadcaster `listening on todo_events (queue group broadcasters), forwarding to http://chat-sink:8080`, and the sink `[chat] #1 bot: A todo was created: #4 say hi in chat`](./assets/image7.png)
 
-The backend announced it, one of the six broadcasters picked it up, the sink
-received it — and no service ever learned another service's name.
+The backend announced it, one broadcaster picked it up, the sink received it; no
+service learned another's name.
 
-**Now take NATS away from the backend** — the other half of Step 3's second decision:
+**Now take NATS away from the backend**, the other half of Step 3's second decision:
 
 ```bash
 kubectl set env deploy/todo-backend -n project NATS_URL=""
@@ -330,12 +327,12 @@ kubectl set env deploy/todo-backend -n project NATS_URL=nats://my-nats:4222
 
 ![with `NATS_URL=""` on the backend a todo is still written — GET /todos returns the list — and the variable is put back afterwards](./assets/image8.png)
 
-The todo is in the response. No chat message was sent. The request never failed —
-which is what "adding messaging to a running service" has to mean.
+The todo is in the response, no chat message was sent, and the request never failed,
+which is what adding messaging to a running service means.
 
-**And check the chat format the same way.** One env change, then a *fresh* todo — reset
-the sink first and wait for a single generation of pods: old messages and old replicas
-both still speak the old shape.
+**And check the chat format the same way.** One env change, then a *fresh* todo: reset
+the sink first and wait for a single generation of pods, since old messages and
+replicas still speak the old shape.
 
 ```bash
 kubectl set env deploy/broadcaster -n project CHAT_FORMAT=discord
@@ -356,17 +353,15 @@ kubectl set env deploy/broadcaster -n project CHAT_FORMAT=generic
 
 `generic` sends `{"message": …, "user": "bot"}`, `discord` sends `{"content": …}` and
 `slack` sends `{"text": …}`: the same sentence in three vocabularies, decided by one
-environment variable at the edge of the system. (The id and title are the ones you just
-created, so yours will differ from the line above.)
+environment variable at the edge of the system. (The id and title are yours, so they
+will differ from the line above.)
 
 ---
 
 ## Step 6 — six replicas, and the duplicate that must not happen
 
-This is the part of the exercise that is worth proving rather than claiming.
-
 **With the queue group** (what the Deployment above has). Reset the sink, create ten
-todos, count:
+todos:
 
 ```bash
 kubectl run curlbox --restart=Never -n project --image=curlimages/curl:8.11.1 --command -- sh -c '
@@ -383,11 +378,9 @@ kubectl logs curlbox -n project; kubectl delete pod curlbox -n project
 
 ![the queue-group run: ten todos, six replicas, `chat-sink received: 10`](./assets/image10.png)
 
-Ten todos, six replicas, ten messages. Each event was handled once, by one replica,
-and any replica could have died mid-run without the number changing.
-
-You can see *which* replica did the work — and it is the part that makes the queue
-group visible:
+Ten todos, six replicas, ten messages: each event handled once, by one replica, and
+any replica could have died mid-run without changing the number. See *which*
+replica did it:
 
 ```bash
 for p in $(kubectl get pods -n project -l app=broadcaster -o name); do
@@ -397,10 +390,9 @@ done
 
 ![the same run per replica: 0 to 3 forwards each — uneven because NATS handed every event to whichever replica was free, and no replica saw all ten](./assets/image11.png)
 
-**Without the queue group.** Take the group away and push the same ten events — but let
-the rollout settle first, because the pods of the previous generation are still
-subscribers until they terminate (seven Running instead of six is exactly that, and it
-lasts about half a minute):
+**Without the queue group.** Take the group away and push the same ten events, but let
+the rollout settle first: the pods of the previous generation stay subscribers until
+they terminate (seven Running instead of six is that, lasting about half a minute):
 
 ```bash
 kubectl set env deploy/broadcaster -n project NATS_QUEUE_GROUP=""
@@ -425,14 +417,14 @@ kubectl logs curlbox -n project; kubectl delete pod curlbox -n project
 ![without the queue group: the same ten todos arrive sixty times](./assets/image12.png)
 
 Sixty: each of the six replicas received all ten events and forwarded all of them.
-*That* is the duplicate the exercise forbids, and the queue group is the one line of
-configuration that prevents it.
+*That* is the duplicate the exercise forbids; the queue group is the one line that
+prevents it.
 
-Fire those ten todos *during* the rollout instead and the counter reads **70**: the six
-new replicas plus the old generation, which stays subscribed until it terminates.
-However many stale pods there are, they share one queue group and count as a single
-extra subscriber — 10 × (6 + 1). One lab, two honest numbers, decided by how patient you
-are with `kubectl rollout status`.
+Fire those ten todos *during* the rollout and the counter reads **70**: the six new
+replicas plus the old generation, still subscribed until it terminates. However
+many stale pods there are, they share one queue group and count as a single extra
+subscriber, 10 × (6 + 1). One lab, two honest numbers, decided by how patient you are
+with `kubectl rollout status`.
 
 Put the group back:
 
@@ -441,11 +433,10 @@ kubectl set env deploy/broadcaster -n project NATS_QUEUE_GROUP=broadcasters
 kubectl rollout status deploy/broadcaster -n project
 ```
 
-**And the missing message.** While the broadcasters are restarting, publish again —
-some of those messages are simply not received. Nothing retries them, because core
-NATS is at-most-once; the event is gone. If that were unacceptable, this is the
-point where JetStream would enter, with a stream that keeps the messages until a
-consumer acknowledges them.
+**And the missing message.** While the broadcasters restart, publish again:
+some are simply not received. Nothing retries them: core NATS is at-most-once
+and the event is gone. Were that unacceptable, JetStream would enter here, with a
+stream that keeps messages until a consumer acknowledges them.
 
 ---
 
@@ -472,20 +463,20 @@ nats_varz_out_bytes{server_id="NDTVIU5C…"} 15679
 ```
 
 Those numbers are cumulative since the server started, and `out_msgs` runs ahead of
-`in_msgs` because one published event is delivered to several subscribers — which is
-exactly why the chapter's queries wrap them in `rate(...)`. The exporter also serves
-`nats_connz_*` per-connection statistics and the Go runtime's own metrics from the same
+`in_msgs` because one event reaches several subscribers, which is
+why the chapter's queries wrap them in `rate(...)`. The exporter also serves
+`nats_connz_*` per-connection statistics and the Go runtime's metrics from the same
 endpoint; `nats_varz_*` is the family the dashboard uses.
 
 To get those numbers into Prometheus instead, add a scrape job and install the
-monitoring stack — from this folder, with its images in your own registry: this cluster
-reaches neither `quay.io` nor `registry.k8s.io`. Everything below stands on its own;
-nothing here reads another lab's files.
+monitoring stack, from this folder with its images in your own registry: this
+cluster reaches neither `quay.io` nor `registry.k8s.io`. Everything below stands on
+its own; nothing reads another lab's files.
 
 ### The nine images the chart needs
 
 `quay.io`, `registry.k8s.io` and `ghcr.io` are unreachable from this cluster, so the
-images go to Artifact Registry first. These tags belong to chart version **91.2.3**:
+images go to Artifact Registry first. These tags belong to chart **91.2.3**:
 
 ```bash
 R=europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository
@@ -500,8 +491,8 @@ docker pull ghcr.io/jkroepke/kube-webhook-certgen:1.8.8             && docker pu
 docker pull docker.io/grafana/grafana:13.2.1-distroless             && docker push $R/grafana:13.2.1-distroless
 ```
 
-A `docker push` can end with `unexpected EOF` **after** printing a digest — the push
-succeeded, and this cluster's registry never complained about the upload.
+A `docker push` can end with `unexpected EOF` **after** printing a digest: the push
+succeeded, and the registry never complained about the upload.
 
 ### Install it, after checking what it will pull
 
@@ -543,29 +534,29 @@ That Secret should print exactly the job from the values file:
     - my-nats-0.my-nats-headless.project.svc.cluster.local:7777
 ```
 
-With chart **91.2.3** the Service is `prom-kube-prometheus-stack-prometheus` and it
-listens on **9090** (older chapter texts say port 80). Open <http://localhost:9090>,
-click the **Graph** tab, and paste each of the four queries below into the query box,
-pressing **Execute** after each one. These are the chapter's queries — the whole
-exercise's dashboard is exactly these four with a title on each panel:
+With chart **91.2.3** the Service is `prom-kube-prometheus-stack-prometheus` on
+**9090** (older chapter texts say port 80). Open <http://localhost:9090>, click the
+**Graph** tab, and paste each of the four queries below into the query box, pressing
+**Execute** after each. These are the chapter's queries; the dashboard is these four,
+one per panel:
 
-1. `up{job="nats"}` — should read `1`: the scrape config was picked up and the
+1. `up{job="nats"}` should read `1`: the scrape config was picked up and the
    exporter answers;
 
 ![`up{job="nats"}` = 1, instance `my-nats-0.my-nats-headless.project.svc.cluster.local:7777`](./assets/image14.png)
 
-2. `sum(nats_varz_connections)` — how many clients are connected right now: the
+2. `sum(nats_varz_connections)`: how many clients are connected right now, the
    backend, the six broadcasters, and every port-forward you leave open;
 
 ![`sum(nats_varz_connections)` in the Graph tab, y-axis 0–16 where the connection count lands](./assets/image15.png)
 
-3. `rate(nats_varz_in_msgs[5m])` and `rate(nats_varz_out_msgs[5m])` — messages per
+3. `rate(nats_varz_in_msgs[5m])` and `rate(nats_varz_out_msgs[5m])`: messages per
    second in and out. Create a few todos and both move, `out` staying ahead of `in`;
 
 ![`rate(nats_varz_out_msgs[5m])` with Prometheus' info notice about the missing `_total` suffix](./assets/image16.png)
 ![`rate(nats_varz_in_msgs[5m])` and the same notice — a naming hint, not a failure](./assets/image17.png)
 
-4. `rate(nats_varz_in_bytes[5m])` and `rate(nats_varz_out_bytes[5m])` — the same in
+4. `rate(nats_varz_in_bytes[5m])` and `rate(nats_varz_out_bytes[5m])`: the same in
    bytes. Read together with the message rates, they tell you whether the payloads are
    representative of real traffic.
 
@@ -594,14 +585,13 @@ kubectl -n monitoring logs deploy/prom-grafana -c grafana-sc-dashboard --tail=4
 ```
 
 Log in as `admin` and open **Dashboards → NATS — 4.6**. It appeared by itself: the chart
-runs a sidecar that watches for ConfigMaps labeled `grafana_dashboard: "1"` (the
-`k8s-sidecar` image you mirrored) and wires up the Prometheus datasource, which is why a
-panel carries nothing but a query.
+runs a sidecar that watches ConfigMaps labeled `grafana_dashboard: "1"` (the
+`k8s-sidecar` image you mirrored) and wires up the Prometheus datasource, so a panel
+carries only the query.
 
-Create a few todos and the two throughput panels move — the chapter's dashboard, one
-query at a time.
+Create a few todos and the two throughput panels move.
 
-> Throughput panels need traffic *and* a wide enough range: `rate(...[5m])` wants two
+> Throughput panels need traffic *and* range: `rate(...[5m])` wants two
 > scrapes inside five minutes, so set **Last 15 minutes** and give it a scrape interval
 > (~30s).
 
@@ -616,23 +606,23 @@ helm uninstall my-nats -n project
 kubectl delete pvc -n project -l app.kubernetes.io/instance=my-nats   # the NATS jetstream volume, if it was created
 ```
 
-The backend keeps its `NATS_URL`, so it will log a NATS warning and carry on
-serving — which is exactly the behaviour Step 3 chose on purpose. Remove the two
-variables, or revert to the 4.5 manifest, to go back to a silent backend.
+The backend keeps its `NATS_URL`, so it logs a NATS warning and carries on serving,
+the behaviour Step 3 chose. Remove the two variables, or revert to the 4.5 manifest,
+to silence it.
 
 ---
 
 ## P.S. — what this exercise leaves you with
 
 - **A queue decouples sender from receiver.** The backend does not know how many
-  broadcasters exist, or whether any exist at all.
+  broadcasters exist, or whether any do.
 - **A queue group is how you scale a consumer.** Same subject, same group, any number of
   replicas, one delivery per message. Remove the group and one event becomes one event
   *per replica*.
 - **Core NATS is at most once.** No subscriber, or a subscriber dying mid-work, and the
   message is gone. Duplicates are what you design against, losses are what you trade
-  away — JetStream is how you buy them back. It is also why the exercise forgives a
-  missing message and forbids a repeated one: noise versus spam.
+  away; JetStream buys them back. It is also why the exercise forgives a missing
+  message and forbids a repeated one: noise versus spam.
 - **Publish from the place that owns the fact.** The backend knows a todo changed; the
-  broadcaster knows how a chat service likes its sentences. Keep those two apart and
-  neither service is redeployed for the other.
+  broadcaster knows how a chat service likes its sentences. Keep those apart and
+  neither is redeployed for the other.

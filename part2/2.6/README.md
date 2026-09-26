@@ -19,8 +19,8 @@
 
 ## Source code changes (todo-app)
 
-Replace the four `const` declarations with a single helper that reads a
-required env var and **fails loudly** if it is missing (no fallback):
+Replace the four `const` declarations with one helper that reads a
+required env var and **fails loudly** if it is missing:
 
 ```rust
 /// Read a required env var, failing loudly if it is missing. No
@@ -31,7 +31,7 @@ fn env_or(name: &str) -> String {
 }
 ```
 
-Then use it everywhere a config value is needed:
+Then use it everywhere:
 
 ```rust
 // in index() and create_todo()
@@ -46,7 +46,7 @@ let max_age: u64 = env_or("MAX_AGE_SECS").parse().expect("MAX_AGE_SECS must be a
 let port: u16 = env_or("PORT").parse().expect("PORT must be a valid number");
 ```
 
-todo-backend only has one config value (PORT), so it just loses the
+todo-backend has one config value (PORT), so it just loses the
 default:
 
 ```rust
@@ -56,9 +56,9 @@ let port: u16 = env::var("PORT")
     .expect("PORT must be a valid number");
 ```
 
-> **Key idea**: `panic!` on a missing env var is _good_ here — a pod
-> started without its configuration should crash loudly and show
-> `CrashLoopBackOff`, not silently run with a wrong value.
+> **Key idea**: `panic!` on a missing env var is _good_ here: a pod
+> started without its configuration should crash loudly with
+> `CrashLoopBackOff`, not run silently with a wrong value.
 
 ## Step 1 — Build + push Dockerfiles
 
@@ -100,8 +100,8 @@ curl -s http://localhost:8081/ | grep '<span>'
 
 ## Step 3 — Prove the value is config-driven (concept check)
 
-Change `MAX_AGE_SECS` in the ConfigMap — the image cache TTL — and see
-it take effect **without rebuilding the image**:
+Change `MAX_AGE_SECS` in the ConfigMap (the image cache TTL) and see it
+take effect **without rebuilding the image**:
 
 ```bash
 kubectl patch configmap todo-config -n project -p '{"data":{"MAX_AGE_SECS":"30"}}'
@@ -111,9 +111,9 @@ kubectl exec deployment/todo-app -n project -- env | grep MAX_AGE_SECS
 # MAX_AGE_SECS=30
 ```
 
-> The same image (`todo-app:2.6`) now behaves differently purely from a
-> ConfigMap edit + restart — that's the whole point of 2.6: no config in
-> code. Revert to `600` afterwards (`kubectl edit configmap ...` + restart).
+> The same image (`todo-app:2.6`) now behaves differently from just a
+> ConfigMap edit + restart: no config in code. Revert to `600` afterwards
+> (`kubectl edit configmap ...` + restart).
 
 ## Step 4 — Clean up
 
@@ -127,11 +127,11 @@ kubectl get all,configmap -n project
 ## P/S:
 
 1. **Configuration belongs outside code**: ports, URLs, paths and TTLs
-   are injected as env vars, so the same image can run differently per
-   environment (dev vs staging vs prod).
+   are injected as env vars, so one image can run differently per
+   environment (dev/staging/prod).
 2. **Two injection places**: a ConfigMap (`envFrom.configMapRef`) for
    shared config, a Deployment `env` for pod-specific values.
-3. **Fail fast**: reading a missing env var should panic, not silently
-   default — a misconfigured pod should crash visibly.
-4. **Config change without rebuild**: editing a ConfigMap + rolling
-   restart reconfigures the app with zero code/image changes.
+3. **Fail fast**: a missing env var should panic, not silently default;
+   a misconfigured pod should crash visibly.
+4. **Config change without rebuild**: a ConfigMap edit + rolling restart
+   reconfigures the app with zero code/image changes.

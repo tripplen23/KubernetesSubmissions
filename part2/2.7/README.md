@@ -6,10 +6,10 @@
 > and save the **Ping-pong** application counter into the database.
 
 The Ping-pong counter moves from in-memory (`AtomicU64`) to a Postgres
-database. The database itself runs as a **StatefulSet** — the correct
-resource for stateful workloads — and uses a **headless Service** for
-network identity plus **dynamic provisioning** for its storage (no manual
-PV this time; K3s' `local-path` provisioner creates it on demand).
+database, which runs as a **StatefulSet** (right for stateful workloads).
+It has a **headless Service** for network identity and **dynamic
+provisioning** for storage (no manual PV; K3s' `local-path` creates it on
+demand).
 
 ## Concepts covered (read the course page first)
 
@@ -25,10 +25,10 @@ PV this time; K3s' `local-path` provisioner creates it on demand).
 
 ## Source code changes (ping-pong)
 
-The counter was `Arc<AtomicU64>`. It is now a row in Postgres. The app:
+The counter was `Arc<AtomicU64>`, now a row in Postgres. The app:
 
-1. Reads `DATABASE_URL` (a `postgres://…` URL) — **no default, panics if missing** (2.6 style)
-2. Connects **with retry** — the DB may still be starting, so it retries up to 30× with a 2s backoff before panicking
+1. Reads `DATABASE_URL` (a `postgres://…` URL): **no default, panics if missing** (2.6 style)
+2. Connects **with retry** (the DB may still start): up to 30× with a 2s backoff, then panic
 3. `CREATE TABLE IF NOT EXISTS pongs (id SERIAL PRIMARY KEY, count BIGINT NOT NULL DEFAULT 0)` + seeds row `(1, 0)`
 4. `GET /pingpong` → `UPDATE pongs SET count = count + 1 WHERE id = 1 RETURNING count`, replies `pong {new-1}` (same behaviour as before)
 5. `GET /pongs` → `SELECT count FROM pongs WHERE id = 1`
@@ -67,7 +67,7 @@ curl -s http://localhost:8081/pingpong   # pong 1
 curl -s http://localhost:8081/pingpong   # pong 2
 ```
 
-## Step 3 — Prove it's really stateful (the whole point)
+## Step 3 — Prove it's really stateful
 
 **A. The counter survives a Ping-pong pod restart** (it's in the DB now):
 
@@ -80,7 +80,7 @@ kubectl get pods -n exercises | grep ping-pong
 curl -s http://localhost:8081/pingpong   # pong 3  ← NOT pong 0!
 ```
 
-> Before 2.7 the counter reset to 0 on restart. Now the replacement pod
+> Before 2.7 the counter reset to 0 on restart; now the replacement pod
 > reconnects to Postgres and continues from 3.
 
 **B. The DB volume survives a Postgres pod restart** (StatefulSet
@@ -96,8 +96,8 @@ kubectl get pods -n exercises | grep postgres
 curl -s http://localhost:8081/pingpong   # pong 4  ← counter kept!
 ```
 
-> The app opens a fresh connection per request, so once Postgres is
-> ready again it recovers automatically — no manual restart needed.
+> The app opens a fresh connection per request, so it recovers
+> automatically once Postgres is ready.
 
 **C. Debugging the DB directly** (course hint):
 
@@ -123,17 +123,17 @@ kubectl get statefulset,pods,pvc -n exercises
 ```
 
 > **StatefulSet data-safety feature**: `kubectl delete -f manifests/`
-> removes the StatefulSet but leaves the PVC/PV behind (by design), so
-> your data survives and re-binds if you re-apply. To clean fully you
-> must delete the PVC (and the dynamically-provisioned PV) explicitly.
+> removes the StatefulSet but leaves the PVC/PV behind (by design): data
+> survives and re-binds on re-apply. A full clean needs an explicit PVC
+> delete.
 
 ## P/S
 
-1. **StatefulSets** for stateful apps — stable pod identity (`postgres-ss-0`)
-   and a **dedicated volume per replica** via `volumeClaimTemplates`.
-2. **Headless service** (`clusterIP: None`) gives each pod a stable DNS
-   name without load balancing.
-3. **Dynamic provisioning** (`local-path`): no manual PV — K3s creates
-   the volume on demand from the PVC template.
+1. **StatefulSets**: stable pod identity (`postgres-ss-0`) and a
+   **dedicated volume per replica** via `volumeClaimTemplates`.
+2. **Headless service** (`clusterIP: None`): each pod gets a stable DNS
+   name with no load balancing.
+3. **Dynamic provisioning** (`local-path`): no manual PV; K3s creates
+   the volume from the PVC template.
 4. **Persistence in practice**: the counter survives app restarts _and_
    DB restarts; deleting the StatefulSet keeps the data.

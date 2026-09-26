@@ -1,20 +1,20 @@
 # 5.4 — Wikipedia with init and sidecar
 
-The exercise asks for one app made of three containers: nginx serving whatever is in its public www directory,
-an init container that curls `https://en.wikipedia.org/wiki/Kubernetes` into that directory before nginx
-starts, and a sidecar that keeps replacing it with a random article. The lab carries the sidecar's script and
-Dockerfile, the manifests, and the receipts from these runs.
+The exercise wants one app of three containers: nginx serving its public www directory, an init container that
+curls `https://en.wikipedia.org/wiki/Kubernetes` into that directory before nginx starts, and a sidecar that
+keeps replacing it with a random article. The lab carries the script, Dockerfile, manifests, and run
+receipts.
 
 ## Step 0 — the cluster and the sidecar image
 
-What this run needs on the machine: `docker`, `k3d` and `kubectl`. `istioctl` is needed for the last step
-only, and nothing in 5.4 requires a mesh at all.
+What the run needs: `docker`, `k3d` and `kubectl`. `istioctl` is needed only for the last step; nothing in
+5.4 requires a mesh.
 
 ```bash
 kubectl config use-context k3d-istio     # or: k3d cluster create istio
 ```
 
-The sidecar is a script, and the image only exists to carry it:
+The sidecar is a script; the image only carries it:
 
 ```bash
 docker build -t wikipedia-sidecar:5.4 sidecar
@@ -27,9 +27,9 @@ INFO[0005] Successfully imported 1 image(s) into 1 cluster(s)
 
 ## Step 1 — one directory, three containers
 
-All three containers share a single `emptyDir` at `/www`, and nginx serves it by mounting the same volume over
-its own `/usr/share/nginx/html`. That mount is also why nginx's "Welcome to nginx" page never appears: the
-volume starts empty and hides whatever the image had at that path.
+All three containers share one `emptyDir` at `/www`, and nginx serves it by mounting that volume over its own
+`/usr/share/nginx/html`. That mount is also why the "Welcome to nginx" page never appears: the volume starts
+empty and hides the image's own file there.
 
 `manifests/namespace.yaml`
 
@@ -146,15 +146,16 @@ NAME                         INIT               CONTAINERS          STATUS
 wikipedia-58f57ff6b9-jczgh   fetch-kubernetes   nginx,random-page   Running
 ```
 
-`initContainers` is not a second list of containers: those run to completion, in order, before any `containers` entry
-starts. Here that took two seconds — nginx cannot have served an empty directory, because it was not running yet:
+`initContainers` is not a second list of containers: those run to completion, in order, before any `containers`
+entry starts. Here it took two seconds; nginx cannot have served an empty directory, because it was not running
+yet:
 
 ```console
 $ kubectl -n wikipedia get pod -l app=wikipedia -o jsonpath='{.items[0].status.initContainerStatuses[0].state.terminated.startedAt} started, {.items[0].status.initContainerStatuses[0].state.terminated.finishedAt} finished, exit {.items[0].status.initContainerStatuses[0].state.terminated.exitCode}'
 2026-09-24T15:09:39Z started, 2026-09-24T15:09:41Z finished, exit 0
 ```
 
-What the init container fetched is what nginx serves, and the shared volume is the only reason nginx can see it:
+What the init container fetched is what nginx serves, and the shared volume is why nginx sees it:
 
 ```console
 $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- ls -l /usr/share/nginx/html
@@ -165,9 +166,9 @@ $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- grep -o "<title>[^<]*</
 <title>Kubernetes - Wikipedia</title>
 ```
 
-The file is owned by uid 100 (`curl_user` in the curl image) and nginx reads it as the `nginx` group, which is
-why no `fsGroup` or `runAsUser` is needed here: `emptyDir` volumes are created world-writable, and a container
-that writes into one only needs the volume, not permissions.
+The file is owned by uid 100 (`curl_user` in the curl image) and nginx reads it as the `nginx` group, so no
+`fsGroup` or `runAsUser` is needed: `emptyDir` volumes are created world-writable, and a container only needs
+the volume, not permissions.
 
 ## Step 2 — the sidecar
 
@@ -230,9 +231,9 @@ USER curl_user
 ENTRYPOINT ["/usr/local/bin/random-page.sh"]
 ```
 
-The first wait of every pod is inside the exercise's range, and the wait is the part that looks like nothing
-happening. Right after the apply the sidecar has fetched nothing: its log holds a single countdown, and the
-page is still the init container's article.
+The first wait of every pod is inside the exercise's range, and it looks like nothing is happening. Right after
+the apply the sidecar has fetched nothing: its log holds a single countdown, and the page is still the init
+container's article.
 
 ```console
 $ kubectl -n wikipedia logs deploy/wikipedia -c random-page
@@ -242,8 +243,8 @@ $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- grep -o "<title>[^<]*</
 <title>Kubernetes - Wikipedia</title>
 ```
 
-That is the state to expect for the first five to fifteen minutes, and nothing about it is broken. When the
-countdown ends, the same two commands answer differently, and the article the pod had been serving is gone:
+That is the state for the first five to fifteen minutes, and nothing is broken. When the countdown ends, the
+two commands answer differently, and the article the pod had been serving is gone:
 
 ```console
 $ kubectl -n wikipedia logs deploy/wikipedia -c random-page
@@ -262,7 +263,8 @@ total 84
 
 ### Watching it without waiting a quarter of an hour
 
-The same script with the range lowered is the same behaviour, fast enough to see. This is a separate pod, so the spec-timed one above keeps its countdown:
+The same script with the range lowered is the same behaviour, fast enough to see. It is a separate pod, so the
+spec-timed one keeps its countdown:
 
 ```bash
 kubectl -n wikipedia run sidecar-demo --image=wikipedia-sidecar:5.4 --restart=Never \
@@ -284,11 +286,13 @@ now serving it as /tmp/www/index.html
 waiting 7s before the next fetch
 ```
 
-`%{url_effective}` is in the log because `Special:Random` answers with a redirect: the line names the article that was actually fetched, so the receipt proves the randomness rather than claiming it. Remember to delete the demo pod (`kubectl -n wikipedia delete pod sidecar-demo`); it is a measurement artifact, not part of the exercise.
+`%{url_effective}` is in the log because `Special:Random` answers with a redirect: the line names the article
+actually fetched, so the receipt proves the randomness. Delete the demo pod afterwards (`kubectl -n wikipedia
+delete pod sidecar-demo`); it is a measurement artifact, not part of the exercise.
 
 ### The 403 that looks like a broken cluster
 
-Wikimedia refuses requests that carry no `User-Agent` header, and an empty shell variable is an easy way to send one:
+Wikimedia refuses requests that carry no `User-Agent` header, and an empty shell variable sends one:
 
 ```console
 $ kubectl -n wikipedia exec deploy/wikipedia -c random-page -- sh -c \
@@ -298,17 +302,20 @@ empty UA → 403
 lab UA   → 200
 ```
 
-Both the init container and the sidecar therefore pass `-A`, which also means the requests are attributable. A 403 with `curl`'s own default user agent does not happen — it is specifically the missing header that is rejected.
+Both the init container and the sidecar therefore pass `-A`, making the requests attributable. A 403
+with `curl`'s own default user agent does not happen; it is specifically the missing header that is rejected.
 
 ## Step 3 — seeing the page in a browser
 
-nginx is not exposed outside the cluster here, so a port-forward is the way in, and it serves the same file the init container wrote:
+nginx is not exposed outside the cluster, so a port-forward is the way in, and it serves the same file the init
+container wrote:
 
 ```bash
 kubectl -n wikipedia port-forward svc/wikipedia-svc 8080:80
 ```
 
-Leave that running in its own terminal and type these in a second one. `HTTP 000` is not a broken app — it is `curl` failing to connect because no forward is up:
+Leave that running in its own terminal and type these in a second one. `HTTP 000` is not a broken app: it is
+`curl` failing to connect because no forward is up:
 
 ```console
 $ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8080/
@@ -321,18 +328,25 @@ $ curl -s http://localhost:8080/ | grep -o "<title>[^<]*</title>"
 <title>1972–73 Kentucky Wildcats men's basketball team - Wikipedia</title>
 ```
 
-![http://localhost:8080 in a browser: the unstyled Wikipedia page, its navigation and table of contents running down the left side, and the article body itself further down the page](./assets/image.png)
+![http://localhost:8080 in a browser: the unstyled Wikipedia page, its navigation and table of contents down the
+left side, and the article body further down](./assets/image.png)
 
-![the article the sidecar fetched (Special:Random), scrolled into view: the 1972–73 Kentucky Wildcats men's basketball infobox — Southeastern Conference, Coaches No. 15 / AP No. 17, a 20-8 record, head coach Joe B. Hall — with the article's own categories listed underneath](./assets/image1.png)
+![the sidecar-fetched article (Special:Random) scrolled into view: the 1972–73 Kentucky Wildcats men's
+basketball infobox (Southeastern Conference, Coaches No. 15 / AP No. 17, a 20-8 record, head coach Joe B. Hall)
+with the article's own categories underneath](./assets/image1.png)
 
-The article arrives without its styling, and the reason is in the file: the stylesheets are absolute paths that only exist on `en.wikipedia.org`, so nothing served from `localhost:8080` can fetch them. That is what an app that serves Wikipedia pages looks like, not a broken download:
+The article arrives without its styling, and the reason is in the file: the stylesheets are absolute paths that
+only exist on `en.wikipedia.org`, so nothing served from `localhost:8080` can fetch them. That is what serving
+Wikipedia pages looks like, not a broken download:
 
 ```console
 $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- sh -c 'grep -o "rel=\"stylesheet\" href=\"/[^?]*" /usr/share/nginx/html/index.html | sort -u'
 rel="stylesheet" href="/w/load.php
 ```
 
-Unstyled also means the article body sits below the skin's own navigation. In the HTML saved here the table of contents starts on line 2 and the article's `firstHeading` only on line 348 of 969, so the first screen is menus and white space — scroll down until the article text is in view before taking the screenshot:
+Unstyled also means the article body sits below the skin's navigation. Here the table of contents starts on line
+2 and the article's `firstHeading` only on line 348 of 969, so the first screen is menus and white space. Scroll
+down until the article text is in view before taking the screenshot:
 
 ```console
 $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- sh -c 'grep -n -m1 -F "vector-toc" /usr/share/nginx/html/index.html | cut -d: -f1; grep -n -m1 -F "firstHeading" /usr/share/nginx/html/index.html | cut -d: -f1'
@@ -340,7 +354,8 @@ $ kubectl -n wikipedia exec deploy/wikipedia -c nginx -- sh -c 'grep -n -m1 -F "
 348
 ```
 
-Leave the sidecar running and reload the page after the next fetch: the article in the browser is a different one, which is the whole point of the exercise.
+Leave the sidecar running and reload the page after the next fetch: the article in the browser is a different
+one.
 
 ## Step 4 — what the mesh would have added (and did not)
 
@@ -353,7 +368,9 @@ wikipedia    sidecar-demo                                 10.42.1.21 k3d-istio-s
 wikipedia    wikipedia-58f57ff6b9-rzbpz                   10.42.0.28 k3d-istio-agent-1  None     HBONE
 ```
 
-`HBONE` and no extra container: that is ambient mode, and it is why 5.2 and 5.3 had pods of `1/1` containers. Sidecar mode, the architecture this exercise's reading describes, is the same pod plus machinery — which can be printed without applying anything:
+`HBONE` and no extra container: that is ambient mode, and it is why 5.2 and 5.3 had pods of `1/1`. Sidecar mode,
+the architecture this exercise's reading describes, is the same pod plus machinery, printable without applying
+anything:
 
 ```bash
 istioctl kube-inject -f manifests/wikipedia.yaml > /tmp/injected.yaml
@@ -368,7 +385,7 @@ $ wc -l manifests/wikipedia.yaml /tmp/injected.yaml
   374 total
 ```
 
-The 226 added lines are an `istio-validation` init container, an `istio-proxy` container, and the sockets, certificates and config volumes the proxy needs:
+The 226 added lines are an `istio-validation` init container, an `istio-proxy` container, and the sockets, certificates and config volumes it needs:
 
 ```console
 $ istioctl kube-inject -f manifests/wikipedia.yaml | grep -nE 'name: (istio-init|istio-validation|istio-proxy|nginx|random-page|fetch-kubernetes)'
@@ -379,7 +396,8 @@ $ istioctl kube-inject -f manifests/wikipedia.yaml | grep -nE 'name: (istio-init
 243:        name: fetch-kubernetes
 ```
 
-One check worth keeping from this lab: the script inside the running container is byte-identical to the file in this folder, which is what proves the pod is running this build rather than an older image with the same tag:
+One check worth keeping: the script inside the running container is byte-identical to the file here,
+which proves the pod runs this build rather than an older image with the same tag:
 
 ```console
 $ md5sum sidecar/random-page.sh
@@ -388,14 +406,26 @@ $ kubectl -n wikipedia exec deploy/wikipedia -c random-page -- md5sum /usr/local
   978cba44e8cc3f20f398481756e3a8c9  /usr/local/bin/random-page.sh
 ```
 
-(`docker image inspect wikipedia-sidecar:5.4` and the pod's own `imageID` do **not** match after `k3d image import` — the import re-stores the image in containerd, so the node reports `5995d7da7690f` for an image docker calls `8717cab42f34`. The node's view is the one that matches the running pod, and the file hash above is the simpler proof.)
+(`docker image inspect wikipedia-sidecar:5.4` and the pod's own `imageID` do **not** match after `k3d image
+import`: the import re-stores the image in containerd, so the node reports `5995d7da7690f` for an image docker
+calls `8717cab42f34`. The node's view matches the running pod; the file hash is the simpler proof.)
 
 ## P.S.
 
-- An init container that fails leaves the pod in `Init:Error` or `Init:CrashLoopBackOff` and the main containers never start — the ordering is a dependency, not a preference. `kubectl logs -c <init name>` works once it has run.
-- A sidecar shares the pod's lifecycle and network namespace but not its filesystem. Everything the two containers share has to be a volume, and `emptyDir` dies with the pod, so the page is re-fetched on every new pod.
-- Serving a file another container is writing means the write has to be atomic: writing straight to `index.html` lets nginx serve a truncated article for as long as the download takes, which is why the script writes `index.html.tmp` and renames it into place.
-- Mounting a volume over a directory hides the image's own content there. nginx's `Welcome to nginx!` index is gone the moment the volume is mounted, which is what makes the init container's fetch visible at all.
-- A receipt that contains a timer needs both sides of it. Before the first wait is over, the log holds one countdown line and the page is still the init container's article; the fetch line does not exist yet, and reading that as a failure is the easy mistake to make.
-- A `-w` format string that repeats the URL invites copying the line only up to the closing quote, and `curl` answers `curl: (2) no URL specified` — the operand at the end is the part it cannot do without. Keep the URL in one place, and if a copied line ends in an unmatched quote or a shortened tail, the shell either waits for more input or answers with `grep: Usage:` — re-copy the whole line rather than editing it.
-- Screenshots of the page in the browser — its top, and the fetched article scrolled into view — are in `assets/`.
+- A failed init container leaves the pod in `Init:Error` or `Init:CrashLoopBackOff` and the main containers never
+  start: the ordering is a dependency, not a preference. `kubectl logs -c <init name>` works once it ran.
+- A sidecar shares the pod's lifecycle and network namespace but not its filesystem, so anything the two
+  share has to be a volume. `emptyDir` dies with the pod, so the page is re-fetched on every new pod.
+- Serving a file another container writes means the write has to be atomic: writing straight to `index.html`
+  lets nginx serve a truncated article for the length of the download, so the script writes `index.html.tmp` and
+  renames it into place.
+- Mounting a volume over a directory hides the image's own content there, which is what makes the init
+  container's fetch visible: nginx's `Welcome to nginx!` index disappears the moment the volume is mounted.
+- A receipt with a timer needs both sides of it: before the first wait ends, the log holds one countdown line
+  and the page is still the init container's article, with no fetch line yet. Reading that as a failure is the
+  easy mistake to make.
+- A `-w` format string that repeats the URL invites copying only up to the closing quote, and `curl` answers
+  `curl: (2) no URL specified`: the trailing operand is the part it cannot do without. Keep the URL in one place;
+  a copied line that ends in an unmatched quote or a shortened tail makes the shell wait for more input or answer
+  with `grep: Usage:`. Re-copy the whole line rather than editing it.
+- Screenshots of the page in the browser (its top, and the fetched article scrolled into view) are in `assets/`.

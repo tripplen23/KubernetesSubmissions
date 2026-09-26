@@ -14,7 +14,7 @@
               └─ shows: <timestamp>: <uuid>.   +  Ping / Pongs: N
 ```
 
-The response of the HTTP GET to Log output stays the same:
+The HTTP GET response stays the same:
 
 ```
 2026-05-18T12:15:17.705Z: 8523ecb1-c716-4cb6-a044-b9e83bb98e43.
@@ -35,7 +35,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik Ingress controller:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -46,13 +46,12 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 
 ### `ping-pong/src/main.rs`
 
-The counter is an in-memory `AtomicU64` again.
-Two routes:
+The counter is an in-memory `AtomicU64` again, with two routes:
 
 - `GET /pingpong` → `pong 0`, `pong 1`, ... (increments, returns the
   previous value)
-- `GET /pongs` → `3` (the current count, no increment — **this is the
-  new HTTP endpoint the Log output app calls**)
+- `GET /pongs` → `3` (current count, no increment; **the new HTTP
+  endpoint the Log output app calls**)
 
 ### `log-output/src/main.rs`
 
@@ -60,8 +59,8 @@ Two-role structure (`ROLE=writer` / `ROLE=reader`):
 
 - **writer**: every 5s appends `<rfc3339 timestamp>: <uuid>` to
   `timestamp.txt` (in the emptyDir).
-- **reader**: serves `GET /` — reads `timestamp.txt` and does
-  `reqwest::get(pings_url)` where `PINGS_URL` defaults to
+- **reader**: serves `GET /`: reads `timestamp.txt`, then calls
+  `reqwest::get(pings_url)` with `PINGS_URL` defaulting to
   `http://ping-pong-svc:3000/pongs`. Response:
 
   ```
@@ -69,13 +68,13 @@ Two-role structure (`ROLE=writer` / `ROLE=reader`):
   Ping / Pongs: <N>
   ```
 
-> `reqwest` uses `rustls-tls` + `default-features = false` (no OpenSSL
-> needed in the final image). **GOTCHA**: on rustc 1.85 you must pin
+> `reqwest` uses `rustls-tls` + `default-features = false`, so the final
+> image needs no OpenSSL. **GOTCHA**: on rustc 1.85 you must pin
 > `icu_*@2.1.0` + `idna_adapter@1.2.0` via `cargo update --precise`
-> (see 1.12). If you copy the `Cargo.lock` from 1.12/1.13 the versions
-> are already locked correctly.
+> (see 1.12). `Cargo.lock` from 1.12/1.13 already locks the right
+> versions.
 
-To verify locally before writing Dockerfile/manifests:
+To verify locally first:
 
 ```bash
 cargo build --manifest-path ping-pong/Cargo.toml
@@ -99,7 +98,7 @@ sleep 6 && curl -s localhost:3001
 # → timestamp lines + "Ping / Pongs: 3"
 ```
 
-**To stop the servers:** `Ctrl+C` in each foreground terminal, or
+**To stop the servers:** `Ctrl+C` in each terminal, or
 `pkill -f 'debug/ping-pong'; pkill -f 'debug/log-output'`.
 
 ## Step 1 — Build and push both images
@@ -142,13 +141,13 @@ curl -s http://localhost:8081/log
 # Ping / Pongs: 3
 ```
 
-The number `3` came over HTTP from the ping-pong pod — **no shared
-volume involved**.
+The `3` came over HTTP from the ping-pong pod; no shared volume was
+involved.
 
 ## Step 4 — The debugging pod (busybox)
 
-The course uses a stand-alone `busybox` Pod to debug pod-to-pod
-networking.
+The course debugs pod-to-pod networking with a stand-alone `busybox`
+Pod.
 
 ```yaml
 apiVersion: v1
@@ -184,20 +183,16 @@ kubectl exec -it my-busybox -- sh
 / # exit
 ```
 
-**Verified working** on this cluster (agent-tested): the busybox pod
-runs, `wget` resolves the Service DNS names and returns the HTML/json.
-Notes:
+**Verified working** on this cluster: the busybox pod runs, and `wget`
+resolves the Service DNS names and returns the HTML/json.
 
-- busybox has **no `curl`** — use `wget` (as the course warns).
-- If you get `Unable to use a TTY`, your terminal emulator doesn't
-  support `-it` — drop the `-it` (`kubectl exec my-busybox -- ...`) or
-  run from a real terminal.
-- Also try hitting the pod IP directly:
-  `kubectl get pod -o wide` then
+- busybox has **no `curl`**; use `wget` (as the course warns).
+- `Unable to use a TTY` means your terminal can't do `-it`; drop the `-it`
+  (`kubectl exec my-busybox -- ...`) or use a real terminal.
+- Or hit the pod IP: `kubectl get pod -o wide`, then
   `kubectl exec -it my-busybox -- wget -qO - http://<POD-IP>:3000`.
 
-Done testing → delete the stand-alone pod (it has no Deployment to
-recreate it):
+When done, delete the pod (it has no Deployment to recreate it):
 
 ```bash
 kubectl delete pod my-busybox
@@ -214,14 +209,11 @@ kubectl get pods,svc
 
 ## P/S
 
-1. **Service = DNS name inside the cluster.** Pods talk to each other
-   via `http://<service-name>:<port>` — that's the whole point of
-   "connecting pods" in this chapter.
+1. **Service = DNS name inside the cluster.** Pods reach each other
+   via `http://<service-name>:<port>`.
 2. **HTTP instead of shared files.** Decoupled apps: log-output no
    longer needs ping-pong's filesystem, only its HTTP endpoint.
 3. **emptyDir vs PV.** Within one pod, emptyDir is enough (writer ↔
-   reader). Between pods, use HTTP (or a Service) — not a shared
-   volume.
-4. **Debugging pods.** A stand-alone busybox Pod is a great way to
-   test cluster-internal networking; it has no Deployment, so delete
-   it when done.
+   reader). Between pods, use HTTP or a Service, not a shared volume.
+4. **Debugging pods.** A stand-alone busybox Pod tests cluster-internal
+   networking. It has no Deployment, so delete it when done.
