@@ -7,7 +7,7 @@ cd ~/binh/KubernetesSubmissions/part1/1.5
 docker build -t tripplen63/todo-app:1.5 .
 ```
 
-**Verify the image exists:**
+**Check the image:**
 ```bash
 docker images tripplen63/todo-app
 ```
@@ -18,12 +18,12 @@ docker images tripplen63/todo-app
 docker run --rm -p 3001:3000 tripplen63/todo-app:1.5
 ```
 
-**Expected output (foreground, blocks):**
+**Expected (foreground, blocks):**
 ```
 Server started in port 3000
 ```
 
-Open **another terminal** and verify the 3 endpoints:
+In another terminal, check the 3 endpoints:
 ```bash
 curl -s http://localhost:3001/ | head -3
 # → <!doctype html>
@@ -48,13 +48,13 @@ Open <https://hub.docker.com/repository-create> in your browser:
 3. **Description**: optional, e.g. "DevOps with Kubernetes — todo-app"
 4. Click **Create**
 
-**Expected**: you land on a page like
+**Expected**: a page like
 `https://hub.docker.com/repository/docker/tripplen63/todo-app` showing
 "This repository is empty. Use the Docker CLI to push your images."
 
-> If you see "Repository not found" later when you push, the repo name
-> in your manifest (`spec.containers[0].image`) must match exactly. The
-> current manifest uses `tripplen63/todo-app:1.5`.
+> If you see "Repository not found" when you push, the repo name in your
+> manifest (`spec.containers[0].image`) must match exactly. The current
+> manifest uses `tripplen63/todo-app:1.5`.
 
 ## Step 4 — Push the image to Docker Hub
 
@@ -62,14 +62,14 @@ Open <https://hub.docker.com/repository-create> in your browser:
 docker push tripplen63/todo-app:1.5
 ```
 
-**Expected output (last line):**
+**Expected (last line):**
 ```
 1.5: digest: sha256:abc123... size: 1234
 ```
 
 **If you see `insufficient_scope: authorization failed`:**
-You are not logged in. Go back to the "What you should have before starting"
-section and run for example `docker login -u tripplen63` again.
+You are not logged in. Run `docker login -u tripplen63` again (see
+"What you should have before starting").
 
 ## Step 5 — Apply manifests to the cluster
 
@@ -78,16 +78,16 @@ kubectl apply -f manifests/deployment.yaml
 kubectl apply -f manifests/service.yaml
 ```
 
-**Expected output:**
+**Expected:**
 ```
 deployment.apps/todo-app created
 service/todo-app created
 ```
 
 (The word `configured` instead of `created` means the Deployment already
-exists. That's fine — K8s will reconcile to the new state.)
+exists; K8s reconciles to the new state.)
 
-Now watch the pod come up:
+Watch the pod come up:
 ```bash
 kubectl get pods -l app=todo-app
 ```
@@ -98,9 +98,9 @@ NAME                       READY   STATUS    RESTARTS   AGE
 todo-app-xxxxxxxxxx-xxxxx  1/1     Running   0          8s
 ```
 
-Wait until the pod is `1/1 Running`. If it stays in another state, run
-`kubectl describe pod -l app=todo-app` and look at the **Events** section
-at the bottom — that tells exactly what went wrong.
+Wait for `1/1 Running`. If it isn't, run
+`kubectl describe pod -l app=todo-app` and read the **Events** section
+at the bottom: it tells what went wrong.
 
 ## Step 6 — Verify with `kubectl port-forward`
 
@@ -108,14 +108,14 @@ at the bottom — that tells exactly what went wrong.
 kubectl port-forward deployment/todo-app 8088:3000
 ```
 
-**Expected output:**
+**Expected:**
 ```
 Forwarding from 127.0.0.1:8088 -> 3000
 Forwarding from [::1]:8088 -> 3000
 ```
 
-Open your browser at **<http://localhost:8088/>**. You should see the
-"Todo App" HTML landing page with the three endpoint bullets.
+Open **<http://localhost:8088/>** in your browser: the "Todo App" HTML
+landing page with three endpoint bullets.
 
 ## Step 7 — Clean up
 
@@ -130,6 +130,6 @@ kubectl get all -l app=todo-app
 # → No resources found in default namespace.
 ```
 
-> **Why clean up?** K8s does not stop pods when your terminal closes.
-> Forgotten resources pile up. After every exercise: `kubectl delete -f`
+> **Why clean up?** K8s keeps pods running when your terminal closes,
+> so forgotten resources pile up. After every exercise: `kubectl delete -f`
 > or `kubectl delete deploy,svc,pod -l app=<name>`.

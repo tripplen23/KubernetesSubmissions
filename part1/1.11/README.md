@@ -23,20 +23,20 @@
 > ```
 
 In short: **two separate pods** (ping-pong + log-output) share ONE
-PersistentVolume via a PVC — the ping-pong counter lives in a file on
+PersistentVolume via a PVC: the ping-pong counter lives in a file on
 the volume, and log-output reads both files to render
 `<timestamp>: <random string>` + `Ping / Pongs: N`.
 
 ## What you should have before starting
 
-- A running k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
-- Traefik (k3d's default Ingress controller) running in `kube-system`
+- A k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
+- Traefik (k3d's default Ingress controller) in `kube-system`
 - Docker Hub login: `docker login -u tripplen63`
 - Working directory: `~/binh/KubernetesSubmissions/part1/1.11`
 
 ### How to check the two prerequisites
 
-**Check 1 — k3d cluster with the right port mapping:**
+**Check 1: k3d cluster + port mapping:**
 
 ```bash
 k3d cluster list
@@ -50,7 +50,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -62,18 +62,18 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 ## Goal summary
 
 1. **Two apps, two pods, ONE volume.** ping-pong (1.9) and log-output
-   (1.10) become separate Deployments again, but both mount the SAME
+   (1.10) become separate Deployments again, both mounting the SAME
    PersistentVolumeClaim.
-2. **ping-pong changes**: the in-memory `AtomicU64` counter (1.9) is
-   replaced with a file on the shared volume — `pings.txt`. Every
-   request reads the number, writes `N+1`, replies `pong N`. The count
-   now survives pod restarts (that's the point of "persisting data").
+2. **ping-pong changes**: the in-memory `AtomicU64` counter (1.9)
+   becomes a file on the shared volume, `pings.txt`. Each request
+   reads the number, writes `N+1`, replies `pong N`, so the count
+   survives pod restarts.
 3. **log-output changes**: the reader now also reads `pings.txt` and
    appends `Ping / Pongs: N` under the log lines.
 4. **PV is admin-owned** → its definition lives in a separate folder
    (`manifests/pv/`), NOT next to the app manifests, as the exercise
    instructs.
-5. Volume data survives pod deletion — delete both pods, they come
+5. Volume data survives pod deletion: delete both pods, they come
    back, and the ping-pong counter continues where it left off.
 
 ## Source code
@@ -98,13 +98,13 @@ part1/1.11/
 - `GET /pingpong` → reads `pings.txt` (default
   `/usr/src/app/files/pings.txt`, overridable via `PINGS_FILE`),
   writes `N+1` back, replies `pong N`.
-- No `AtomicU64` anymore — the file IS the counter.
+- No `AtomicU64` anymore; the file IS the counter.
 
 ### `log-output/src/main.rs`
 
-- `ROLE=writer` — same as 1.10, but the line format is now
+- `ROLE=writer`: same as 1.10, but the line format is now
   `<timestamp>: <random string>` (matching the expected output).
-- `ROLE=reader` — `GET /` reads `timestamp.txt` AND `pings.txt`
+- `ROLE=reader`: `GET /` reads `timestamp.txt` AND `pings.txt`
   (env `PINGS_PATH`, default `/usr/src/app/files/pings.txt`), and
   returns:
   ```
@@ -113,8 +113,7 @@ part1/1.11/
   Ping / Pongs: N
   ```
 
-To verify both crates compile and work together locally before writing
-Dockerfile/manifests:
+To verify both crates compile and work together locally:
 
 ```bash
 cargo build --manifest-path ping-pong/Cargo.toml
@@ -138,19 +137,19 @@ curl -s http://localhost:3002/pingpong   # → pong 2
 curl -s http://localhost:3001/           # → <timestamp>: <uuid> ... Ping / Pongs: 3
 ```
 
-Kill ping-pong and restart it — the counter continues (`pong 3`),
+Kill ping-pong and restart it: the counter continues (`pong 3`),
 because the count lives in `/tmp/1.11-share/pings.txt`, not in memory.
 
 **To stop the servers:**
 
 - **Foreground** (no `&`): `Ctrl+C` in each terminal.
-- **Background** (`&` or via a tool): `pkill -f log-output` /
+- **Background** (`&` or a tool): `pkill -f log-output` /
   `pkill -f ping-pong` or `fuser -k 3001/tcp 3002/tcp`.
 
 ## Step 1 — Prepare the node directory for the local PV
 
-The PV uses a **local** path — storage lives on a cluster node, not in
-the pod. Create the directory on the agent node first:
+The PV uses a **local** path: storage lives on a cluster node, not in
+the pod. Create that directory on the agent node first:
 
 ```bash
 docker exec k3d-mycluster-agent-0 mkdir -p /tmp/kube
@@ -184,7 +183,7 @@ kubectl get pv
 # → example-pv is now Bound (not Available) — the PVC claimed it
 ```
 
-> **Concept check**: PVC is `Bound` — the claim matched the PV by
+> **Concept check**: PVC is `Bound`: the claim matched the PV by
 > `storageClassName` + capacity + access mode. If no PV matched, the
 > PVC would stay `Pending`.
 
@@ -231,7 +230,7 @@ curl -s http://localhost:8081/pingpong
 # → pong 2
 ```
 
-Now check the file inside the ping-pong pod:
+Now check the file inside ping-pong:
 
 ```bash
 kubectl exec deployment/ping-pong -- cat /usr/src/app/files/pings.txt
@@ -262,7 +261,7 @@ Open your browser: `http://localhost:8081/log` → the expected output:
 Ping / Pongs: 3
 ```
 
-Hit `/pingpong` a few more times, refresh `/log` — `Ping / Pongs`
+Hit `/pingpong` a few more times, refresh `/log`, and `Ping / Pongs`
 grows.
 
 ## Step 8 — Prove the data persists
@@ -304,7 +303,7 @@ kubectl get pv,pvc
    by `storageClassName` / capacity / access mode. No match → `Pending`.
 3. **PVs are admin-owned** → keep their definitions in a separate
    folder from app manifests (as the exercise demands).
-4. Two DIFFERENT pods can share one PV by mounting the same PVC —
-   that's how ping-pong's counter file becomes visible to log-output.
-5. Persistent data survives pod deletion — unlike emptyDir (1.10) and
+4. Two DIFFERENT pods can share one PV by mounting the same PVC: that's
+   how ping-pong's counter file becomes visible to log-output.
+5. Persistent data survives pod deletion, unlike emptyDir (1.10) and
    unlike in-memory state (1.9).

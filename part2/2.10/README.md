@@ -10,7 +10,7 @@
 
 ## Knowledge: the monitoring stack (Chapter 3)
 
-The monitoring stack has **four components**, each with a distinct role:
+The monitoring stack has **four components**:
 
 | Component                    | Role                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------- |
@@ -29,21 +29,20 @@ Node/cluster metrics  ──Prometheus───────▶┘
 
 ### Helm — the package manager for Kubernetes
 
-- **Helm** packages Kubernetes apps as **charts**. Charts include the chart
-  version, app requirements (K8s version, dependencies…).
-- Charts are hosted in **remote repos** (like Docker images on Docker Hub).
-  Register one with `helm repo add <name> <url>`.
+- **Helm** packages Kubernetes apps as **charts**, which carry the chart
+  version and app requirements (K8s version, dependencies…).
+- Charts live in **remote repos** (like Docker images on Docker Hub);
+  register one with `helm repo add <name> <url>`.
 - Charts ship with **defaults**; a **values file** (`-f xxx-values.yaml`)
-  customizes the chart for your situation.
-- Install/upgrade a chart: `helm upgrade --install <name> <repo>/<chart>`.
-  Remove it: `helm delete <name>`.
+  customizes them.
+- Install/upgrade: `helm upgrade --install <name> <repo>/<chart>`.
+  Remove: `helm delete <name>`.
 
 ### Custom resources
 
-`helm install` pulls in a lot of stuff, including **custom resources**
-(CRDs) — a way to extend the Kubernetes API with new resource types that K8s
-doesn't have out of the box. Deleting a chart (`helm delete`) leaves CRDs
-behind (they must be removed manually) — harmless on their own.
+`helm install` also pulls in **custom resources** (CRDs), which extend the
+Kubernetes API with resource types K8s lacks out of the box. `helm delete`
+leaves CRDs behind; they must be removed manually.
 
 ---
 
@@ -65,12 +64,12 @@ docker build -t tripplen63/todo-cron:2.9 .
 docker push tripplen63/todo-cron:2.9
 ```
 
-> **What changed in 2.10 backend?** A request-logger middleware prints one
-> line to stdout for _every_ request: `[req] METHOD /path -> STATUS (ms)`.
+> **What changed in the 2.10 backend?** A request-logger middleware prints
+> one line to stdout for _every_ request: `[req] METHOD /path -> STATUS (ms)`.
 > Blocked ≥141-char todos also log `[reject] todo blocked: N chars`.
-> These stdout lines are what Alloy scrapes off the node and forwards to
-> Loki → visible in Grafana. (The 140-char limit already existed in the
-> backend; logging makes the rejections observable.)
+> Alloy scrapes these stdout lines off the node and forwards them to
+> Loki → visible in Grafana. The 140-char limit already existed; logging
+> makes the rejections observable.
 
 ## Step 2 — install the monitoring stack (Helm)
 
@@ -127,14 +126,14 @@ Open **http://localhost:3000** and log in with **admin / admin**.
 
 ### 1) Port-forward the backend, then send a valid + a too-long todo
 
-The request logging lives in **todo-backend**, so hit that service directly
-(not todo-app). Port-forward the backend port (`2345`):
+Request logging lives in **todo-backend**, so hit that service directly
+(not todo-app). Port-forward its port (`2345`):
 
 ```bash
 kubectl port-forward -n project svc/todo-backend-svc 8082:2345
 ```
 
-Then, in a second terminal:
+Then, in another terminal:
 
 ```bash
 # valid todo (201)
@@ -168,8 +167,8 @@ You'll see every request logged by the middleware, e.g.:
 
 ![grafana_loki1](assets/grafana_loki1.png)
 
-The **non-allowed message** (≥141 chars) shows up right here — proof the
-backend blocked it AND the monitoring stack works.
+The **non-allowed message** (≥141 chars) shows up here: proof the backend
+blocked it and the monitoring stack works.
 
 ### 3) Bonus — metrics with Prometheus (PromQL)
 
@@ -199,13 +198,13 @@ kubectl delete namespace monitoring
 ## P/S:
 
 1. **Observability** = seeing into the cluster (metrics + logs) instead of
-   guessing — the whole point of Chapter 3.
+   guessing.
 2. **4 roles**: Prometheus (metrics), Loki (logs), **Alloy/k8s-monitoring**
    (collect pod logs → Loki), **Grafana** (visualize).
 3. **Helm** = package manager; **charts** = packages; **values file** =
    customization; repos must be added first.
 4. **Install order matters** (Prometheus+Loki → Alloy → Grafana) because of
    data-source dependencies.
-5. **Request logging** in the backend is what makes the exercise observable —
-   stdout → Alloy → Loki → Grafana. The 140-char limit was already enforced;
-   logging surfaces the `400` rejections.
+5. **Request logging** makes the exercise observable: stdout → Alloy →
+   Loki → Grafana. The 140-char limit was already enforced; logging
+   surfaces the `400` rejections.

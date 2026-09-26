@@ -12,11 +12,11 @@
 
 ## Solution
 
-- **Source**: see [`src/main.rs`](./src/main.rs) — Rust 1.85 + axum 0.8 + tokio + serde
+- **Source**: see [`src/main.rs`](./src/main.rs), Rust 1.85 + axum 0.8 + tokio + serde
 - **Image**: [`tripplen63/todo-app:1.2`](https://hub.docker.com/r/tripplen63/todo-app/tags)
 - **Manifests**:
-  - [`manifests/deployment.yaml`](./manifests/deployment.yaml) — Deployment, `PORT=3000`
-  - [`manifests/service.yaml`](./manifests/service.yaml) — ClusterIP service
+  - [`manifests/deployment.yaml`](./manifests/deployment.yaml): Deployment, `PORT=3000`
+  - [`manifests/service.yaml`](./manifests/service.yaml): ClusterIP service
 
 ### Endpoints
 

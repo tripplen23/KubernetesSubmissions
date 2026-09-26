@@ -24,32 +24,30 @@
 
 ### 2. GitHub Actions basics
 
-- A **workflow** is a YAML file in **`.github/workflows/`** **at the ROOT
-  of the repository** (the repo already has part1–part3 — the workflow
-  lives *beside* them, not inside `3.6`). GitHub runs it automatically.
-- `on: push` → the workflow runs on any push, on any branch (that's what
-  3.7 exploits).
-- `env:` — variables shared by all steps.
-- Each `step` runs on the same ephemeral Ubuntu runner.
-- **`${{ secrets.X }}`** reads a *secret* you store on GitHub
-  (Settings → Secrets and variables → Actions). Secrets are never visible
-  in logs, never in git.
+- A **workflow** is a YAML file in **`.github/workflows/`** **at the repository
+  ROOT** (the repo already has part1–part3, so it sits *beside* them, not in
+  `3.6`). GitHub runs it.
+- `on: push` runs the workflow on any push, on any branch (3.7 exploits this).
+- `env:` holds variables shared by all steps; each `step` runs on the same
+  ephemeral runner.
+- **`${{ secrets.X }}`** reads a *secret* stored on GitHub
+  (Settings → Secrets and variables → Actions); never visible in logs or git.
 - **`$GITHUB_ENV` trick**: `echo "VAR=value" >> $GITHUB_ENV` exports a
-  variable to the *next* steps (that's how the image tags travel).
-- **`$GITHUB_SHA`** and **`github.ref_name`** — values GitHub injects: the
-  commit hash and the branch name.
-- **`permissions: id-token: write`** on the job — REQUIRED for OIDC auth.
-  Without it, auth fails with *"Actions did not inject
-  $ACTIONS_ID_TOKEN_REQUEST_TOKEN"* (we hit this exactly).
+  variable to the *next* steps (how tags travel).
+- **`$GITHUB_SHA`** and **`github.ref_name`**: the commit hash and branch
+  name GitHub injects.
+- **`permissions: id-token: write`** on the job is REQUIRED for OIDC auth;
+  without it, auth fails with *"Actions did not inject
+  $ACTIONS_ID_TOKEN_REQUEST_TOKEN"* (we hit this).
 
 ### 3. The OIDC chain of trust — the "what did we actually do" part
 
-The classic way: create a service account **JSON key**, store it as a
-GitHub secret. Works, but a stolen key = full access, and it never expires.
+The classic way: create a service account **JSON key** stored as a GitHub
+secret. It works, but a stolen key means full access forever.
 
-The modern way: **Workload Identity Federation**. GitHub proves
-who it is with a **short-lived signed token** (no stored secrets), and
-Google exchanges it for a service-account token. Five pieces:
+The modern way is **Workload Identity Federation**: GitHub proves who it is
+with a **short-lived signed token** (nothing stored) and Google exchanges it
+for a service-account token:
 
 | # | Resource | What it is | Why needed |
 |---|---|---|---|
@@ -59,8 +57,8 @@ Google exchanges it for a service-account token. Five pieces:
 | 4 | **OIDC Provider** `github-provider` | registers GitHub as trusted issuer + attribute mapping/condition (which repo) | "tokens from GitHub are trusted — and here's how to read them" |
 | 5 | **Impersonation binding** | allows `principalSet` (our repo) to impersonate the SA | locks it down: ONLY this repo can use the SA |
 
-When the pipeline runs: GitHub mints a token automatically, GCP verifies
-and exchanges it for a SA token. **Nowhere is a secret stored.**
+When the pipeline runs, GitHub mints a token, GCP verifies and exchanges it
+for a SA token; **nothing is stored.**
 
 ### 4. The image tag recipe — why it's so long
 
@@ -69,13 +67,12 @@ $REGISTRY/$PROJECT_ID/$REPOSITORY/$IMAGE:$BRANCH-$GITHUB_SHA
 europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-app:main-c00adaefda1f7169
 ```
 
-- `europe-north1-docker.pkg.dev` — the Artifact Registry endpoint (region).
-- `dwk-gke-506208` — project id.
-- `my-repository` — the Docker repo we create in Artifact Registry.
-- `todo-app` — the image name.
-- `main-c00adaefda1f7169` — branch + commit → **unique per push** →
-  Kubernetes always sees a *new* image → `imagePullPolicy: Always`
-  redeploys.
+- `europe-north1-docker.pkg.dev`: the Artifact Registry endpoint (region).
+- `dwk-gke-506208`: project id.
+- `my-repository`: the Docker repo we create.
+- `todo-app`: the image name.
+- `main-c00adaefda1f7169`: branch + commit → **unique per push**, so
+  Kubernetes always sees a *new* image → `imagePullPolicy: Always` redeploys.
 
 ### 5. Deployment strategy vs. ReadWriteOnce PVC (the material's warning)
 
@@ -83,24 +80,23 @@ The material warns: *"If your pod uses a Persistent Volume Claim access
 mode ReadWriteOnce, you may need to consider the deployment strategy, since
 the default (RollingUpdate) may cause problems."*
 
-Why: a **ReadWriteOnce** volume can be mounted by **one pod at a time**.
+Why: a **ReadWriteOnce** volume is mountable by **one pod at a time**, so
 RollingUpdate (default) starts the NEW pod *before* terminating the OLD one
-(`maxSurge`) — the new pod cannot attach the RWO PVC while the old pod
-still holds it → the new pod sits **Pending** forever → rollout hangs.
+(`maxSurge`); it cannot attach the RWO PVC while the old pod holds it, so it
+sits **Pending** forever and the rollout hangs.
 
 Our project:
-- **todo-app** has the PVC (`image-claim`, RWO) → switch strategy to
-  **`Recreate`** (terminate old pod first, then start new — one holder at a
-  time, RWO satisfied).
+- **todo-app** has the PVC (`image-claim`, RWO) → switch to **`Recreate`**
+  (old pod first, then new, so only one holder at a time).
 - **todo-backend**: no volume → default RollingUpdate is fine.
-- **postgres-ss** is a **StatefulSet**: pods update in place, one at a
-  time, each with its own PVC — no conflict by design.
+- **postgres-ss** is a **StatefulSet**: pods update in place, one at a time,
+  each with its own PVC, so no conflict.
 
 ### 6. Namespace
 
-The project lives in namespace `project`. Kubernetes does not auto-create
-it, and the pipeline doesn't either — **you create it once** (Step 1). The
-manifests pin `namespace: project`.
+The project lives in namespace `project`, which neither Kubernetes nor the
+pipeline auto-creates, so **you create it once** (Step 1); the manifests pin
+it.
 
 ---
 
@@ -128,7 +124,7 @@ kubectl create namespace project
 ### 1b. Artifact Registry — a Docker repository (the pipeline pushes here)
 
 > Artifact Registry (`europe-north1-docker.pkg.dev`) is the *current*
-> Google registry; `gcr.io` is legacy. The pipeline pushes to the repo
+> Google registry; `gcr.io` is legacy. The pipeline pushes to
 > `my-repository`.
 
 ```bash
@@ -139,8 +135,8 @@ gcloud artifacts repositories create my-repository \
 ### 1c. Base image for postgres
 
 The pipeline rebuilds the three apps, but **postgres is a public image**
-(not rebuilt). GKE private nodes can't be sure they can pull Docker Hub,
-so push postgres into your registry once (referenced by `postgres.yaml`):
+(not rebuilt). GKE private nodes can't be sure they can pull Docker Hub, so
+push it to your registry once (see `postgres.yaml`):
 
 ```bash
 docker pull postgres:16
@@ -152,11 +148,11 @@ docker push gcr.io/dwk-gke-506208/postgres:16
 
 ## Step 2 — GCP IAM: the OIDC chain of trust (5 commands)
 
-Replace placeholders, for example: `PROJECT_ID=dwk-gke-506208`,
-`PROJECT_NUMBER=323959491379` (run `gcloud projects list` to confirm),
-`YOUR_ORG/YOUR_REPO=tripplen23/KubernetesSubmissions` (my GitHub repo).
+Replace placeholders: `PROJECT_ID=dwk-gke-506208`,
+`PROJECT_NUMBER=323959491379` (confirm with `gcloud projects list`),
+`YOUR_ORG/YOUR_REPO=tripplen23/KubernetesSubmissions`.
 
-**1. Service account + permissions** (the identity the pipeline acts as):
+**1. Service account + permissions** (the pipeline's identity):
 
 ```bash
 gcloud iam service-accounts create github-actions-sa --display-name="GitHub Actions SA" --project=PROJECT_ID
@@ -170,8 +166,7 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
   --member="serviceAccount:github-actions-sa@PROJECT_ID.iam.gserviceaccount.com"
 ```
 
-> `artifactregistry.writer` = push images; `container.admin` = deploy to
-> the GKE cluster.
+> `artifactregistry.writer` = push images; `container.admin` = deploy to GKE.
 
 **2. Workload identity pool** (container for the trusted identities):
 
@@ -179,8 +174,8 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 gcloud iam workload-identity-pools create github-pool --location=global --display-name="GitHub Actions Pool" --project=PROJECT_ID
 ```
 
-**3. OIDC provider** (register GitHub as a trusted source, restrict to YOUR
-repo via the attribute-condition):
+**3. OIDC provider** (register GitHub as trusted, restricted to YOUR repo
+via the attribute-condition):
 
 ```bash
 gcloud iam workload-identity-pools providers create-oidc github-provider \
@@ -192,7 +187,7 @@ gcloud iam workload-identity-pools providers create-oidc github-provider \
   --project=PROJECT_ID
 ```
 
-**4. Allow YOUR repo to impersonate the service account** (the lock):
+**4. Allow YOUR repo to impersonate the service account**:
 
 ```bash
 gcloud iam service-accounts add-iam-policy-binding github-actions-sa@PROJECT_ID.iam.gserviceaccount.com \
@@ -203,7 +198,7 @@ gcloud iam service-accounts add-iam-policy-binding github-actions-sa@PROJECT_ID.
 
 > This last step needs permission to **set policy on a service account**
 > (`roles/iam.serviceAccountAdmin`). If it fails with
-> `IAM_PERMISSION_DENIED`, grant yourself that role first, then retry:
+> `IAM_PERMISSION_DENIED`, grant yourself that role, then retry:
 >
 > ```bash
 > gcloud projects add-iam-policy-binding PROJECT_ID \
@@ -215,7 +210,7 @@ gcloud iam service-accounts add-iam-policy-binding github-actions-sa@PROJECT_ID.
 ## Step 3 — GitHub: the three secrets
 
 In the repo: **Settings → Secrets and variables → Actions → New repository
-secret** (or the `gh` CLI):
+secret** (or `gh`):
 
 | Secret | Value |
 |---|---|
@@ -235,16 +230,16 @@ gh secret set WORKLOAD_IDENTITY_PROVIDER --repo tripplen23/KubernetesSubmissions
 
 ![alt text](./assets/image1.png)
 
-> ⚠️ `gh secret set` reads the VALUE from **stdin** (or `--body`) — it does
-> NOT take the name; if you `echo "GKE_PROJECT" | gh secret set
-> GKE_PROJECT`, you store the literal placeholder (we hit this during
-> testing — auth failed with "Invalid value for audience").
+> ⚠️ `gh secret set` reads the VALUE from **stdin** (or `--body`), **not** the
+> name; `echo "GKE_PROJECT" | gh secret set GKE_PROJECT` stores the literal
+> placeholder (we hit this during testing: auth failed with "Invalid value
+> for audience").
 >
-> ⚠️ **`GKE_PROJECT` must be the project ID** `dwk-gke-506208` — a wrong
-> value here makes `get-gke-credentials` fail with `permission denied on
-> resource project ***` (seen in 2026-09-09 testing). Auth still works
-> (auth@v3 doesn't read `GKE_PROJECT`), so a green auth step does NOT prove
-> this secret is correct.
+> ⚠️ **`GKE_PROJECT` must be the project ID** `dwk-gke-506208`; a wrong value
+> makes `get-gke-credentials` fail with `permission denied on resource
+> project ***` (seen in 2026-09-09 testing). Auth still works (auth@v3
+> doesn't read `GKE_PROJECT`), so a green auth step does NOT prove this
+> secret is correct.
 
 ![alt text](./assets/image2.png)
 
@@ -339,17 +334,14 @@ jobs:
 ```
 
 Read it in 4 chunks:
-1. **trigger + env** — `on: push`, the constants, `BRANCH=github.ref_name`.
-2. **auth block** — checkout, `auth@v3` (OIDC via the two secrets),
-   `setup-gcloud`, `get-gke-credentials` (kubectl context for the runner),
-   `auth configure-docker $REGISTRY` (docker push auth).
-3. **build + publish** — "Form image names" writes the three tags into
-   **$GITHUB_ENV** (they persist across steps), then `docker build --tag`
-   each app + `docker push`.
-4. **deploy** — the kustomize action installs `kustomize`; `edit set
-   image` rewrites the `images:` entries in `kustomization.yaml` to the
-   fresh `main-<sha>` tags; `kustomize build . | kubectl apply -f -`
-   deploys; `rollout status` waits until each workload is up.
+1. **trigger + env**: `on: push`, the constants, `BRANCH=github.ref_name`.
+2. **auth block**: checkout, `auth@v3` (OIDC via the two secrets),
+   `setup-gcloud`, `get-gke-credentials`, `auth configure-docker $REGISTRY`.
+3. **build + publish**: "Form image names" writes the three tags into
+   **$GITHUB_ENV**; then `docker build --tag` and `docker push`.
+4. **deploy**: the kustomize action installs `kustomize`; `edit set image`
+   rewrites the `images:` entries to the fresh `main-<sha>` tags; then
+   `kustomize build . | kubectl apply -f -` and `rollout status`.
 
 ---
 
@@ -361,7 +353,7 @@ git commit -m "ci: add deployment pipeline + 3.6 project on GKE"
 git push
 ```
 
-GitHub now runs `Release application` (watch the **Actions** tab):
+GitHub runs `Release application` (watch the **Actions** tab):
 
 ```bash
 gh run list --limit 3
@@ -393,10 +385,10 @@ kubectl get deploy todo-app -n project \
 
 ![alt text](./assets/image6.png)
 
-Take a look now in Google Cloud Artifact Registry
+Now check Google Cloud Artifact Registry:
 ![alt text](./assets/image5.png)
 
-And the app still works (deployed by the pipeline — no human touch):
+And the app still works (deployed by the pipeline, no human touch):
 
 ```bash
 kubectl port-forward -n project svc/todo-app-svc 8081:3000 &
@@ -425,8 +417,7 @@ gcloud compute disks list --project=dwk-gke-506208     # any pvc-* → delete:
 gcloud compute disks delete pvc-... --project=dwk-gke-506208 --zone=europe-north1-c
 ```
 
-Final check — clusters / instances / forwarding-rules / addresses / disks
-all = 0:
+Final check: clusters, instances, forwarding-rules, addresses, disks all = 0:
 
 ```bash
 gcloud container clusters list --project=dwk-gke-506208
@@ -435,17 +426,17 @@ gcloud compute disks list --project=dwk-gke-506208
 
 ## P/S:
 
-1. **CI/CD = build → publish → deploy, triggered by a push.** The moment
+1. **CI/CD = build → publish → deploy, triggered by a push**: the moment
    you `git push`, production updates.
 2. **OIDC chain of trust (5 pieces)**: SA → roles → identity pool → OIDC
    provider with repo condition → impersonation binding. **No stored
    secrets.**
-3. `permissions: id-token: write` is the unlock for OIDC from Actions.
-4. Image tag `main-<sha>` = unique per push → deployments always run a
-   fresh image.
+3. `permissions: id-token: write` unlocks OIDC from Actions.
+4. Image tag `main-<sha>` is unique per push, so deployments always run fresh
+   images.
 5. **RollingUpdate vs RWO PVC** → `Recreate` on the volume-carrying
-   deployment; StatefulSets are safe by design.
-6. The whole project (app + backend + db + cron) now ships to production
-   with one workflow.
-7. Clean up cluster, AR repo, images, leftover disks — every byte of
-   borrowed cloud costs.
+   deployment; StatefulSets are safe.
+6. The whole project (app + backend + db + cron) ships to production with
+   one workflow.
+7. Clean up cluster, AR repo, images and leftover disks; borrowed cloud
+   costs money.

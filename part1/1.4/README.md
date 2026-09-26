@@ -9,13 +9,13 @@
 
 ## Solution
 
-- **Source**: see [`src/main.rs`](./src/main.rs) — same Rust binary as 1.2
+- **Source**: see [`src/main.rs`](./src/main.rs), same Rust binary as 1.2
 - **Image**: [`tripplen63/todo-app:1.4`](https://hub.docker.com/r/tripplen63/todo-app/tags)
 - **Manifests**:
   - [`manifests/deployment.yaml`](./manifests/deployment.yaml)
   - [`manifests/service.yaml`](./manifests/service.yaml)
 
-Both manifests are versioned and live in the repo — no more imperative
+Both manifests are versioned and live in the repo, so no more imperative
 `kubectl run`/`kubectl expose`. The repo is the single source of truth.
 
 ### Endpoints

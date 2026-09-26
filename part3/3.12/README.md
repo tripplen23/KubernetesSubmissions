@@ -9,10 +9,10 @@
 ## What this lab is
 
 A **self-contained slice of the project**. The Rust sources of `todo-app` /
-`todo-backend` and the cron script sit in this folder; the Dockerfiles and the
-Kubernetes manifests are the hand-typed part — their full content is in
-[Appendix A](#appendix-a--dockerfiles-and-manifests) so this folder can build and
-run on its own.
+`todo-backend` and the cron script sit here; the Dockerfiles and Kubernetes
+manifests are the hand-typed part, reproduced in
+[Appendix A](#appendix-a--dockerfiles-and-manifests) so this folder builds and
+runs on its own.
 
 ```text
 part3/3.12/
@@ -36,9 +36,9 @@ part3/3.12/
                                                              └──────────────────┘
 ```
 
-The code does not change in this exercise — it is about *where the logs end up*.
-But the project **must be deployed and running** before the log steps make any
-sense, so the lab starts by building and deploying **this folder's own copy**:
+The code does not change here; it is about *where the logs end up*. But the
+project **must be deployed and running** before the log steps make sense, so
+the lab deploys **this folder's own copy**:
 
 ```text
 Step 1  build + push the images, kubectl apply -k  ← the app now runs
@@ -49,11 +49,11 @@ Step 5  screenshot (the deliverable)
 Step 6  optional tour
 ```
 
-The deliverable is **one screenshot**: the project's logs at the moment a new
-todo is created.
+The deliverable is **one screenshot**: the logs when a new todo is created.
 
-The relevant lines come from **`todo-backend`**, whose `log_request` middleware
-prints one line per request to stdout (`part3/3.12/todo-backend/src/main.rs`):
+The relevant lines come from **`todo-backend`**, whose `log_request`
+middleware prints one line per request to stdout
+(`part3/3.12/todo-backend/src/main.rs`):
 
 ```rust
 /// Request logger middleware — prints one line to stdout for every
@@ -66,17 +66,16 @@ println!("[req] {method} {uri} -> {status} ({ms} ms)");
 so creating a todo shows up in the **backend's** logs as
 `[req] POST /todos -> 201 Created (… ms)`.
 
-> The browser itself sees **303** after submitting the form — that is `todo-app`'s
-> redirect back to the page (`Redirect` → `303 See Other`). But `todo-app` does
-> not log requests (only startup and image-cache lines): the line in the logs
-> comes from `todo-backend`, which answers the todo-app's `POST /todos` with
-> **201 Created**. That is the status code to look for — not 303.
-> (`GET /todos -> 200 OK` are the page refreshes.)
+> The browser sees **303** after submitting the form, which is `todo-app`'s
+> redirect back to the page (`Redirect` → `303 See Other`). But `todo-app`
+> does not log requests (only startup and image-cache lines): the logged line
+> comes from `todo-backend`, which answers the `POST /todos` with **201
+> Created**. Look for that status code, not 303. (`GET /todos -> 200 OK` are
+> the page refreshes.)
 
-> The same stdout lines that the Kubernetes-part of the course shipped to
-> Loki/Grafana (via Alloy) on k3d: on GKE you do not need any log shipper — the
-> node agent collects container stdout/stderr into Cloud Logging automatically.
-> That is the whole point of this exercise.
+> The same stdout lines that the Kubernetes part of the course shipped to
+> Loki/Grafana (via Alloy) on k3d: on GKE you need no log shipper, since the
+> node agent collects container stdout/stderr into Cloud Logging.
 
 ---
 
@@ -106,7 +105,7 @@ kubectl rollout status deployment/todo-backend -n project
 kubectl rollout status statefulset/postgres-ss -n project
 ```
 
-Verify that the pod the logs will come from is the one you just built:
+Verify the logs' pod is the one you just built:
 
 ```bash
 kubectl get pods -n project
@@ -115,24 +114,24 @@ kubectl get pods -n project \
 #   todo-backend-…   europe-north1-docker.pkg.dev/dwk-gke-506208/my-repository/todo-backend:3.12
 ```
 
-> `todo-cron` is a CronJob — you will not see its pod until the hourly run, and
-> in this cluster it fails because the node pool has no internet egress (see
-> P.S.). It does not matter for this lab: the logs come from `todo-backend`.
+> `todo-cron` is a CronJob, so its pod only appears on the hourly run, where
+> it fails because the node pool has no internet egress (see P.S.). It does not
+> matter here: the logs come from `todo-backend`.
 
 ---
 
 ## Step 2 — "enable the monitoring" on GKE
 
-Standard GKE clusters created with `gcloud container clusters create` already
-come with **Cloud Logging + Cloud Monitoring** wired in for the system and
-workload components — "enabling" it is then just *verifying* it. Check:
+Standard GKE clusters created with `gcloud container clusters create` come
+with **Cloud Logging + Cloud Monitoring** already wired in for system and
+workload components, so "enabling" it is just *verifying* it. Check:
 
 ```bash
 gcloud container clusters describe dwk-cluster --zone=europe-north1-c \
   --project=dwk-gke-506208 --format="yaml(loggingConfig,monitoringConfig)"
 ```
 
-What our cluster says:
+Our cluster says:
 
 ```yaml
 loggingConfig:
@@ -156,9 +155,8 @@ monitoringConfig:
     - JOBSET
 ```
 
-If it were **off** (e.g. the cluster was created with `--logging=NONE
---monitoring=NONE`), turn it on instead — that is the "just enable the
-monitoring" the exercise means:
+If it were **off** (e.g. created with `--logging=NONE --monitoring=NONE`),
+turn it on instead, the "just enable the monitoring" the exercise means:
 
 ```bash
 gcloud container clusters update dwk-cluster --zone=europe-north1-c \
@@ -168,8 +166,8 @@ gcloud container clusters update dwk-cluster --zone=europe-north1-c \
 Console equivalent: **Kubernetes Engine → Clusters → dwk-cluster → Features**
 (Cloud Logging / Cloud Monitoring dropdowns).
 
-> `WORKLOAD` is the part that matters here: it is what ships the containers'
-> stdout/stderr to Cloud Logging.
+> `WORKLOAD` matters here: it ships the containers' stdout/stderr to Cloud
+> Logging.
 
 ---
 
@@ -177,10 +175,10 @@ Console equivalent: **Kubernetes Engine → Clusters → dwk-cluster → Feature
 
 Two entry points, same data.
 
-**a) Logs Explorer (what the exercise's screenshot comes from)**
+**a) Logs Explorer (the exercise's screenshot source)**
 
 Open <https://console.cloud.google.com/logs/query?project=dwk-gke-506208>
-(make sure the project selector says `dwk-gke-506208`) and paste this query:
+(project selector on `dwk-gke-506208`) and paste this query:
 
 ```text
 resource.type="k8s_container"
@@ -188,13 +186,13 @@ resource.labels.namespace_name="project"
 resource.labels.container_name="todo-backend"
 ```
 
-Direct link with the query pre-filled (URL-encoded):
+Direct link with the query pre-filled:
 
 ```text
 https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.namespace_name%3D%22project%22%0Aresource.labels.container_name%3D%22todo-backend%22?project=dwk-gke-506208
 ```
 
-**b) the CLI (same filter, good for checking without a browser)**
+**b) the CLI (same filter, no browser needed)**
 
 ```bash
 gcloud logging read 'resource.type="k8s_container"
@@ -203,8 +201,7 @@ gcloud logging read 'resource.type="k8s_container"
   --limit=5 --project=dwk-gke-506208 --format="value(timestamp,textPayload)"
 ```
 
-Real output from this cluster (startup lines — at this point nobody has created
-a todo yet):
+Real output from this cluster (startup lines; no todo created yet):
 
 ```text
 2026-09-10T22:05:27.560312640Z	todo-backend started in port 3000
@@ -212,20 +209,18 @@ a todo yet):
 2026-09-10T21:24:34.945612846Z	todo-backend started in port 3000
 ```
 
-Also worth knowing (and visible in the screenshot): every entry carries the
-`resource.labels` that make this queryable — `namespace_name`, `pod_name`,
-`container_name`, `cluster_name`, `location`.
+Every entry also carries the `resource.labels` that make it queryable:
 
 > `kubectl logs` shows the same text but only for a *live* pod and only the
-> last N lines — Cloud Logging keeps the history and lets you filter by
-> workload/cluster. That is the difference the exercise is pointing at.
+> last N lines; Cloud Logging keeps the history and filters by
+> workload/cluster. That is the difference the exercise points at.
 
 ---
 
 ## Step 4 — create a new todo (so there is something to see)
 
 The project has **no Ingress/Gateway** (only ClusterIP services), so reach the
-UI through a port-forward — exactly like the earlier labs:
+UI through a port-forward, as in earlier labs:
 
 ```bash
 kubectl port-forward -n project svc/todo-app-svc 8081:3000
@@ -237,14 +232,14 @@ field `content` to the backend's `POST /todos` as JSON (`{"title": …}`):
 
 - success → the backend answers **201 Created** (the *browser* then gets a
   **303** redirect from `todo-app`, which never reaches the logs)
-- over-long title (>140 chars) → the backend answers **400 Bad Request**
+- over-long title (>140 chars) → **400 Bad Request**
 
 ---
 
 ## Step 5 — take the screenshot (the deliverable)
 
-With the port-forward running, submit a todo and look at Logs Explorer (Step 4)
-right away — the request line appears within a second or two:
+With the port-forward running, submit a todo and look at Logs Explorer
+right away; the request line appears within a second or two:
 
 ```text
 2026-09-12T17:44:08.911937574Z	[req] POST /todos -> 201 Created (18 ms)
@@ -259,24 +254,24 @@ right away — the request line appears within a second or two:
 ## Step 6 — what else the "monitoring systems" give you (optional tour)
 
 - **Kubernetes Engine → Workloads → `todo-backend` → tab `Observability`**: CPU and
-  memory *request utilization* — the percentages are relative to the requests set
-  in the previous exercise — plus pod state, error logs and warning events
-  (sub-dashboards: Overview / CPU / Memory / cAdvisor). The **Cost optimization**
-  tab of the Workloads page shows *used vs requested vs limit* side by side, which
-  is exactly the 3.11 exercise seen from the console.
+  memory *request utilization* (percentages relative to the requests set in the
+  previous exercise), plus pod state, error logs and warning events
+  (Overview / CPU / Memory / cAdvisor). **Cost optimization** on the Workloads
+  page shows *used vs requested vs limit* side by side, the 3.11 exercise seen
+  from the console.
 
 ![alt text](./assets/image1.png)
 
 - **Log-based counter metric** (no code change): Logs Explorer → **Actions →
   Create metric**, or **Logging → Log-based Metrics → Create metric** (type
-  **Counter**, name `todos_created`, filter `textPayload:"POST /todos"`). It
-  lands in Monitoring as `logging.googleapis.com/user/todos_created`.
-- **Alerts**: **Actions → Create log alert** (log-based, single `log match`
-  condition) or **Monitoring → Alerting → Create policy** on that metric. Needs
+  **Counter**, name `todos_created`, filter `textPayload:"POST /todos"`);
+  Monitoring shows it as `logging.googleapis.com/user/todos_created`.
+- **Alerts**: **Actions → Create log alert** (log-based, one `log match`
+  condition) or **Monitoring → Alerting → Create policy** on that metric; needs
   a notification channel (**Alerting → Edit notification channels**).
 - **Uptime checks**: **Monitoring → Uptime checks → Create Uptime Check**.
-  ClusterIP services are unreachable for *public* checks — needs a public
-  endpoint, or a **private uptime check** (Internal IP + Service Directory +
+  ClusterIP services are unreachable for *public* checks, which need a public
+  endpoint or a **private uptime check** (Internal IP + Service Directory +
   firewall from `35.199.192.0/19`).
 - Console links: [Logs Explorer](https://console.cloud.google.com/logs/query?project=dwk-gke-506208) ·
   [Log-based metrics](https://console.cloud.google.com/logs/metrics?project=dwk-gke-506208) ·
@@ -287,19 +282,18 @@ right away — the request line appears within a second or two:
 
 ## P.S. — notes from doing this lab
 
-- If `gcloud`/`kubectl` suddenly answer `Reauthentication failed. cannot prompt
-  during non-interactive execution`, the CLI login has expired — run
-  `gcloud auth login` (over SSH: `gcloud auth login --no-launch-browser`).
-  `kubectl` authenticates through `gke-gcloud-auth-plugin` with the same
-  credential, so **both** start failing at the same time.
-- The cluster has **no Cloud NAT**, so pods have no general internet egress:
-  creating a todo through the port-forward works (it only talks to Postgres in
-  the cluster), while the hourly `todo-cron` keeps failing with
+- If `gcloud`/`kubectl` answer `Reauthentication failed. cannot prompt during
+  non-interactive execution`, the CLI login has expired: run `gcloud auth
+  login` (over SSH: `gcloud auth login --no-launch-browser`). `kubectl` uses
+  `gke-gcloud-auth-plugin` with the same credential, so **both** fail together.
+- The cluster has **no Cloud NAT**, so pods have no internet egress: creating a
+  todo through the port-forward works (it only talks to Postgres in the
+  cluster), while the hourly `todo-cron` keeps failing with
   `BackoffLimitExceeded` because its script fetches `en.wikipedia.org`. That has
   nothing to do with logging.
-- Cloud Logging collects **stdout/stderr of containers**, and it keeps it even
-  after the container is gone — which is why a cluster without SSH still lets you
-  debug things like the `OOMKilled` pod from the previous exercise.
+- Cloud Logging collects **stdout/stderr of containers** and keeps it even
+  after the container is gone, which is why a cluster without SSH still lets you
+  debug things like the previous exercise's `OOMKilled` pod.
 - Container output only shows up as *application* logs if it goes to
-  stdout/stderr. Writing to a file inside the container means nothing will
-  appear in Logs Explorer.
+  stdout/stderr; writing to a file inside the container means nothing appears
+  in Logs Explorer.

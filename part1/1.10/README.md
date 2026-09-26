@@ -15,19 +15,19 @@
 > helpful now since there are more than one container running inside a pod.
 
 In short: the log-output app (1.1/1.3/1.7) becomes **two containers in
-one pod** that share a file through an **emptyDir volume** — exactly
-like the image-finder + image-response example in the course material.
+one pod** sharing a file through an **emptyDir volume**, like the
+image-finder + image-response example in the course material.
 
 ## What you should have before starting
 
-- A running k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
-- Traefik (k3d's default Ingress controller) running in `kube-system`
+- A k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
+- Traefik (k3d's default Ingress controller) in `kube-system`
 - Docker Hub login: `docker login -u tripplen63`
 - Working directory: `~/binh/KubernetesSubmissions/part1/1.10`
 
 ### How to check the two prerequisites
 
-**Check 1 — k3d cluster with the right port mapping:**
+**Check 1: k3d cluster + port mapping:**
 
 ```bash
 k3d cluster list
@@ -41,7 +41,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -52,7 +52,7 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 
 ## Goal summary
 
-1. ONE binary, TWO roles — selected by the `ROLE` env var:
+1. ONE binary, TWO roles, selected by the `ROLE` env var:
    - `ROLE=writer` → generate a random string once, then every 5s
      append `<timestamp> <random string>` to a file
    - `ROLE=reader` → HTTP server, `GET /` returns the file contents
@@ -70,14 +70,12 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
   `tokio::time::interval(5s)` appends
   `<rfc3339 timestamp> <uuid>` to `FILE_PATH` (default
   `/usr/src/app/files/timestamp.txt`).
-- `run_reader()`: axum `GET /` reads the same `FILE_PATH` and returns
-  its contents as plain text (or a placeholder if the file doesn't
-  exist yet).
-- The file path is configurable via `FILE_PATH` so the same binary
-  works locally (`/tmp/...`) and in the pod (`/usr/src/app/files/...`).
+- `run_reader()`: axum `GET /` returns `FILE_PATH` as plain text (or a
+  placeholder if the file doesn't exist yet).
+- `FILE_PATH` is configurable so the same binary works locally
+  (`/tmp/...`) and in the pod (`/usr/src/app/files/...`).
 
-To verify the source compiles and runs locally before writing
-Dockerfile/manifests:
+To verify locally before writing Dockerfile/manifests:
 
 ```bash
 cargo build
@@ -101,9 +99,8 @@ curl -s http://localhost:3001/
 **To stop the servers:**
 
 - **Foreground** (no `&`): `Ctrl+C` in each terminal.
-- **Background** (`&` or via a tool): `pkill -f log-output`
-  (careful while `cargo build` is also running) or
-  `fuser -k 3001/tcp`.
+- **Background** (`&` or a tool): `pkill -f log-output`
+  (careful while `cargo build` runs) or `fuser -k 3001/tcp`.
 
 ## Step 1 — Build the Docker image
 
@@ -116,7 +113,7 @@ docker images tripplen63/log-output:1.10
 
 ## Step 2 — Test the container locally (no cluster)
 
-The same image runs both roles — only the env vars differ:
+The same image runs both roles; only the env vars differ:
 
 ```bash
 docker run --rm -d --name writer -e ROLE=writer -e FILE_PATH=/usr/src/app/files/timestamp.txt \
@@ -133,7 +130,7 @@ docker run --rm -v logdata:/usr/src/app/files \
 # → 2026-08-08T18:19:52.275Z <uuid>
 ```
 
-Then test the reader role (port 3001 on the host):
+Then test the reader role (host port 3001):
 
 ```bash
 docker run --rm -p 3001:3000 -e ROLE=reader -e FILE_PATH=/usr/src/app/files/timestamp.txt \
@@ -148,7 +145,7 @@ curl -s http://localhost:3001/
 # → 2026-08-08T18:19:52.275Z <uuid>
 ```
 
-Clean up — **stop BOTH containers** (the reader too — a running
+Clean up: **stop BOTH containers** (the reader too, because a running
 container keeps the volume "in use" and `docker volume rm` refuses to
 delete it):
 
@@ -158,10 +155,10 @@ docker stop <reader-container-name-or-id>   # e.g. from `docker ps`
 docker volume rm logdata
 ```
 
-> **Note**: `-v logdata:/usr/src/app/files` is a named volume — it
-> lets two separate containers share the file, mimicking what the
-> emptyDir does inside a pod. On the cluster you won't need this:
-> both containers live in the SAME pod and share the emptyDir directly.
+> **Note**: `-v logdata:/usr/src/app/files` is a named volume, letting
+> two separate containers share the file, like emptyDir inside a pod.
+> On the cluster you won't need it: both containers live in the SAME
+> pod and share the emptyDir directly.
 
 ## Step 3 — Push the image
 
@@ -224,7 +221,7 @@ timestamp + random string lines.
 
 ## Step 7 — Prove emptyDir is ephemeral
 
-The file lives on the pod's emptyDir — delete the pod and the data is
+The file lives on the pod's emptyDir. Delete the pod and the data is
 gone (new pod, new random string):
 
 ```bash
@@ -234,9 +231,9 @@ kubectl logs deployment/log-output -c writer | head -1
 # → Writer started, random string: <DIFFERENT uuid>
 ```
 
-The old lines are gone — the new writer started from an empty file
-with a fresh random string. This is exactly the emptyDir lifecycle the
-course material describes.
+The old lines are gone: the new writer started from an empty file with
+a fresh random string, the emptyDir lifecycle the course material
+describes.
 
 ## Step 8 — Clean up
 
@@ -252,11 +249,11 @@ kubectl get all -l app=log-output
    containers mount it at the same `mountPath` and see the same files.
 2. Volume lifecycle is tied to the **pod**: container restarts keep
    the data, pod restart/deletion wipes it.
-3. One pod can run **multiple containers** — they share the pod's
+3. One pod can run **multiple containers**: they share the pod's
    network namespace and volumes, but have isolated filesystems
-   unless you explicitly mount a volume.
+   unless you mount a volume.
 4. `kubectl logs` needs `-c <container>` when a pod has more than one
    container.
-5. This is why the course says: emptyDir for caches and
-   inter-container sharing, NOT for databases — next up: Persistent
-   Volumes (1.11) which survive pod death.
+5. So the course says: emptyDir for caches and inter-container
+   sharing, NOT for databases. Next up: Persistent Volumes (1.11),
+   which survive pod death.

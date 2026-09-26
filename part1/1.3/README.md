@@ -9,12 +9,12 @@
 
 ## Solution
 
-- **Source**: see [`src/main.rs`](./src/main.rs) — same Rust binary as 1.1
+- **Source**: see [`src/main.rs`](./src/main.rs), same Rust binary as 1.1
 - **Image**: [`tripplen63/log-output:1.3`](https://hub.docker.com/r/tripplen63/log-output/tags)
-- **Manifest**: [`manifests/deployment.yaml`](./manifests/deployment.yaml) — labelled, `imagePullPolicy: Always`
+- **Manifest**: [`manifests/deployment.yaml`](./manifests/deployment.yaml), labelled with `imagePullPolicy: Always`
 
-This exercise focuses on the *workflow*: commit manifest → `kubectl apply -f`
-→ cluster converges to desired state. No `kubectl run` imperative commands.
+This exercise is about the *workflow*: commit manifest → `kubectl apply -f`
+→ cluster converges to desired state. No `kubectl run` commands.
 
 ### Deploy
 
@@ -25,6 +25,6 @@ kubectl get deploy,pods -l app=log-output
 kubectl logs -f -l app=log-output
 ```
 
-Re-applying the manifest after edits is a no-op when the desired state is
-unchanged; deleting the resource (`kubectl delete -f manifests/deployment.yaml`)
-and re-applying brings it back.
+Re-applying the manifest is a no-op when the desired state is unchanged;
+deleting the resource (`kubectl delete -f manifests/deployment.yaml`) and
+re-applying brings it back.

@@ -9,18 +9,18 @@
 > run with the "Log output" application side by side.
 
 In short: the **todo-app** (the project, from 1.2/1.5/1.6) is now
-reached through an **Ingress** instead of a NodePort Service.
+reached through an **Ingress** instead of a NodePort.
 
 ## What you should have before starting
 
-- A running k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
-- Traefik (k3d's default Ingress controller) running in `kube-system`
+- A k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
+- Traefik (k3d's default Ingress controller) in `kube-system`
 - Docker Hub login: `docker login -u tripplen63`
 - Working directory: `~/binh/KubernetesSubmissions/part1/1.8`
 
 ### How to check the two prerequisites
 
-**Check 1 — k3d cluster with the right port mapping:**
+**Check 1: k3d cluster + port mapping:**
 
 ```bash
 k3d cluster list
@@ -34,7 +34,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik Ingress controller:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -45,14 +45,13 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 
 ## Source code (`src/main.rs`)
 
-- Same as 1.6: axum 0.8, `GET /` → HTML landing page,
-  `GET /api/health` → `{"status":"ok"}`, `GET /api/todos` → `[]`.
+- Same as 1.6: axum 0.8, `GET /` → HTML, `GET /api/health` →
+  `{"status":"ok"}`, `GET /api/todos` → `[]`.
 - Listens on `0.0.0.0:$PORT` (default 3000), prints
   `Server started in port NNNN`.
 - Only the HTML text changed (says "reached via an Ingress" now).
 
-To verify the source compiles and runs locally before writing
-Dockerfile/manifests:
+To verify locally before writing Dockerfile/manifests:
 
 ```bash
 cargo build
@@ -66,9 +65,9 @@ curl -s http://localhost:3001/api/health   # in terminal 2
 **To stop the server:**
 
 - **Foreground** (no `&`): `Ctrl+C` in terminal 1.
-- **Background** (`&` or via a tool): `pkill -f todo-app`
-  (matches anything with "todo-app" in the command line — careful
-  while `cargo build` is also running) or `fuser -k 3001/tcp`.
+- **Background** (`&` or a tool): `pkill -f todo-app`
+  (matches anything with "todo-app" in the command line, so be careful
+  while `cargo build` runs) or `fuser -k 3001/tcp`.
 
 ## Step 1 — Build the Docker image
 
@@ -132,9 +131,9 @@ kubectl get ingress
 
 ## Step 5 — Remove the log-output Ingress
 
-Exercise 1.7 created an Ingress (or two) for the log-output app. Its
-rules on host `localhost` would interfere with this exercise. Delete
-only the Ingress resources (and any 1.7 middlewares):
+Exercise 1.7 created an Ingress (or two) for log-output. Its rules on
+host `localhost` would interfere here. Delete only the Ingress
+resources (and any 1.7 middlewares):
 
 ```bash
 kubectl delete ingress apps-log apps-todo      # names from 1.7, if present
@@ -149,11 +148,11 @@ kubectl get ingress
 # → todo-app   traefik   localhost   172.18.0.3,172.18.0.4   80      ...
 ```
 
-> **Why remove it?** Two Ingresses with rules on the same
-> host (`localhost`) race for the same traffic. The log-output rules
-> from 1.7 match `PathPrefix(/log)` — harmless here — but keeping the
-> cluster tidy matches the assignment: log-output and the project run
-> side by side only in the NEXT exercise (paths & routing).
+> **Why remove it?** Two Ingresses with rules on the same host
+> (`localhost`) race for the same traffic. The 1.7 rules match
+> `PathPrefix(/log)`, harmless here, but keeping the cluster tidy
+> matches the assignment: log-output and the project run side by side
+> only in the NEXT exercise.
 
 ## Step 6 — Access the app through the Ingress
 

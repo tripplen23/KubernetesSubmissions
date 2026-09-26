@@ -17,14 +17,14 @@ In short: a new **ping-pong** app (`GET /pingpong` → `pong 0`, `pong 1`,
 
 ## What you should have before starting
 
-- A running k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
-- Traefik (k3d's default Ingress controller) running in `kube-system`
+- A k3d cluster named `mycluster` with port `8081:80@loadbalancer` mapped
+- Traefik (k3d's default Ingress controller) in `kube-system`
 - Docker Hub login: `docker login -u tripplen63`
 - Working directory: `~/binh/KubernetesSubmissions/part1/1.9`
 
 ### How to check the two prerequisites
 
-**Check 1 — k3d cluster with the right port mapping:**
+**Check 1: k3d cluster + port mapping:**
 
 ```bash
 k3d cluster list
@@ -38,7 +38,7 @@ ss -tlnp 2>/dev/null | grep -E ':(8081|8082)'
 # LISTEN 0  4096  *:8082  *:*
 ```
 
-**Check 2 — Traefik Ingress controller:**
+**Check 2: Traefik:**
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
@@ -49,12 +49,12 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 
 ## Source code (`src/main.rs`)
 
-- `static COUNTER: AtomicU64` — in-memory counter, `fetch_add(1)` per
-  request.
+- `static COUNTER: AtomicU64`, an in-memory counter with `fetch_add(1)`
+  per request.
 - Route: `GET /pingpong` → `format!("pong {}", n)`.
 - axum 0.8, listens on `0.0.0.0:$PORT` (default 3000).
 
-To verify the source compiles and runs locally before writing Dockerfile/manifests:
+To verify locally before writing Dockerfile/manifests:
 
 ```bash
 cargo build
@@ -70,8 +70,8 @@ curl -s http://localhost:3001/pingpong   # in terminal 2, run 3x
 **To stop the server:**
 
 - **Foreground** (no `&`): `Ctrl+C` in terminal 1.
-- **Background** (`&` or via a tool): `pkill -f ping-pong`
-  (careful while `cargo build` is also running) or `fuser -k 3001/tcp`.
+- **Background** (`&` or a tool): `pkill -f ping-pong`
+  (careful while `cargo build` runs) or `fuser -k 3001/tcp`.
 
 ## Step 1 — Build the Docker image
 
@@ -102,9 +102,9 @@ Stop the container with `Ctrl+C` (foreground) or
 
 ## Step 3 — Push the image
 
-Create the Docker Hub repo first if this is the first push of the
-`ping-pong` repository: <https://hub.docker.com/repository-create>
-(name `ping-pong`, Public). Then:
+If this is the first push of the `ping-pong` repo, create it at
+<https://hub.docker.com/repository-create> (name `ping-pong`, Public).
+Then:
 
 ```bash
 docker push tripplen63/ping-pong:1.9
@@ -132,8 +132,8 @@ kubectl get ingress
 
 ## Step 5 — Remove the todo-app Ingress (from 1.8)
 
-Exercise 1.8 left a `todo-app` Ingress on host `localhost`. Delete it
-so it doesn't claim `/` and shadow the new paths:
+Exercise 1.8 left a `todo-app` Ingress on host `localhost`; delete it so
+it doesn't claim `/` and shadow the new paths:
 
 ```bash
 kubectl delete ingress todo-app     # if present
@@ -166,7 +166,7 @@ Open your browser:
 - `http://localhost:8081/pingpong` → `pong 0`, refresh → `pong 1`, ...
 - `http://localhost:8081/log/status` → log-output JSON
 
-> Hit `/pingpong` several times — the counter only
+> Hit `/pingpong` several times: the counter only
 > goes UP. Now `kubectl delete pod -l app=ping-pong` and hit it again.
 > Why does it restart at `pong 0`?
 

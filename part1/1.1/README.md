@@ -12,7 +12,7 @@
 
 ## Solution
 
-- **Source**: see [`src/main.rs`](./src/main.rs) — Rust 1.85 + tokio + uuid + chrono
+- **Source**: see [`src/main.rs`](./src/main.rs), Rust 1.85 + tokio + uuid + chrono
 - **Image**: [`tripplen63/log-output:1.1`](https://hub.docker.com/r/tripplen63/log-output/tags)
 - **Manifest**: [`manifests/deployment.yaml`](./manifests/deployment.yaml)
 - **Dockerfile**: multi-stage (`rust:1.85-slim` builder → `debian:bookworm-slim` runtime)
@@ -33,7 +33,7 @@ kubectl get pods -l app=log-output
 kubectl logs -f -l app=log-output
 ```
 
-You should see a new log line every 5 seconds:
+A new log line appears every 5 seconds:
 
 ```
 2026-07-29T14:30:00.123Z: <uuid>

@@ -7,12 +7,12 @@
 > and/or ConfigMaps** to have the backend access the database.
 
 The `todo-backend` moves from in-memory storage (`Vec<Todo>` + `next_id`)
-to a **Postgres** database running as a **StatefulSet**. The database
-connection details are injected via a **Secret** (the password) and a
-**ConfigMap** (the non-secret host/port/db/user) — building on 2.5/2.6.
+to a **Postgres** **StatefulSet**. Its connection details come from a
+**Secret** (the password) and a **ConfigMap** (host/port/db/user), building
+on 2.5/2.6.
 
-`todo-app` (the frontend) is **unchanged** — it still calls the backend
-over HTTP and is reused at `:2.6`.
+`todo-app` is **unchanged**: it still calls the backend over HTTP and is
+reused at `:2.6`.
 
 ## Concepts covered (read the course page first)
 
@@ -31,8 +31,8 @@ The in-memory store is replaced by Postgres:
 
 1. Reads `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`,
    `POSTGRES_PORT`, `POSTGRES_DB` (each via `env_or`, panic if missing)
-2. Assembles the URL in code — the password never sits in plain text in a
-   manifest's `value:` field
+2. Assembles the URL in code, so the password never appears in a manifest's
+   `value:`
 3. `CREATE TABLE IF NOT EXISTS todos (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, done BOOLEAN NOT NULL DEFAULT false)` at startup, retrying while the DB boots
 4. `GET /todos` → `SELECT id, title, done FROM todos ORDER BY id`
 5. `POST /todos` → `INSERT INTO todos (title) VALUES ($1) RETURNING id, title, done` → 201
@@ -60,9 +60,9 @@ docker build -t tripplen63/todo-backend:2.8 .
 docker push tripplen63/todo-backend:2.8
 ```
 
-> `todo-app`'s source is unchanged from 2.6, so its image stays `:2.6`;
-> only `todo-backend` gets the new `:2.8` tag (it now talks to Postgres).
-> Both Dockerfiles live in the folder so the lab is self-contained.
+> `todo-app` is unchanged from 2.6, so its image stays `:2.6`; only
+> `todo-backend` gets `:2.8` (it now talks to Postgres). Both Dockerfiles
+> live in the folder, so the lab is self-contained.
 
 ## Step 2 — Apply and verify manifests
 
@@ -114,8 +114,8 @@ curl -s http://localhost:8081/ | grep '<span>'
 # <span>Learn Kubernetes</span>   ← still there
 ```
 
-> The backend opens a fresh connection per request, so it recovers
-> automatically once Postgres is ready again.
+> With a fresh connection per request, the backend recovers when Postgres
+> is ready.
 
 ## Step 4 — Clean up
 
@@ -129,12 +129,12 @@ kubectl get statefulset,pods,pvc -n project
 
 ## P/S:
 
-1. **Postgres as a StatefulSet** (1 replica) — the correct resource for a
-   stateful workload, with dynamic `local-path` storage.
+1. **Postgres as a StatefulSet** (1 replica), with dynamic `local-path`
+   storage.
 2. **Secret vs ConfigMap**: only the password is a Secret; host/port/db/
    user are a ConfigMap.
-3. **`secretKeyRef` vs `configMapKeyRef`**: both inject env vars, but
-   from different sources.
-4. **No plain-text secret in manifests**: the backend assembles the URL
-   from env vars in code, so the password never appears in a `value:`.
+3. **`secretKeyRef` vs `configMapKeyRef`**: both inject env vars, from
+   different sources.
+4. **No plain-text secret in manifests**: the URL is assembled in code, so
+   the password never appears in a `value:`.
 5. **Persistence**: todos survive app _and_ DB restarts.

@@ -40,13 +40,13 @@ curl -s http://localhost:8081/ | grep '<span>'
 ```
 
 > **K8s concept**: the PVC binds to the cluster-scoped PV from inside
-> the `project` namespace. `kubectl get pv` shows the PV (no `-n` — it's
-> global); `kubectl get pvc -n project` shows the claim.
+> `project`. `kubectl get pv` shows the PV (no `-n`; it is global);
+> `kubectl get pvc -n project` shows the claim.
 
 ## Step 3 — Cross-namespace DNS (debugging pod)
 
-Prove the project services are in `project` by reaching them from the
-`default` namespace via their fully-qualified name:
+Prove the project services live in `project`: reach them from the
+`default` namespace by fully-qualified name:
 
 ```bash
 cat > busybox.yaml <<'EOF'
@@ -93,10 +93,10 @@ kubectl get all -n project
 
 ## P/S
 
-1. **Project in its own namespace** — todo-app + todo-backend live in
-   `project`; exercise apps (log-output, ping-pong) live in `exercises`.
-2. **PV vs PVC scope**: the PV is cluster-scoped (no namespace), the
-   PVC is namespaced and claims the PV from inside `project`.
+1. **Project in its own namespace**: todo-app + todo-backend live in
+   `project`; log-output and ping-pong live in `exercises`.
+2. **PV vs PVC scope**: the PV is cluster-scoped, the PVC is namespaced
+   and claims it from inside `project`.
 3. **Short vs FQDN service names**: short name works inside the
    namespace; `<svc>.<namespace>` works cluster-wide.
-4. **No code change** — organization is pure manifest work.
+4. **Organization is pure manifest work**: no code changes.
