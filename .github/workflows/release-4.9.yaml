@@ -11,6 +11,13 @@ permissions:
   contents: write
   id-token: write
 
+concurrency:
+  # Two pushes landing close together would start two runs that both rebase and
+  # commit to the same branch; queue them rather than cancelling, so a release
+  # that is already a minute in is never dropped.
+  group: release-commit-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-publish-release:
     name: Build, Push, Release

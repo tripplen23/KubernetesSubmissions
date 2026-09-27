@@ -12,6 +12,14 @@ permissions:
                            # the access token — without it the auth step fails with
                            # "did not inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
 
+concurrency:
+  # A run takes minutes and commits back to main. Two pushes landing close
+  # together start two runs that rebase onto the same file, and the second one
+  # dies in the commit step with "There are 1 conflicting files". Queue them
+  # instead of cancelling: a half-finished release must never be dropped.
+  group: release-commit-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-publish-release:
     name: Build, Push, Release

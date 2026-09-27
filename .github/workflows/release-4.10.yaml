@@ -17,6 +17,12 @@ permissions:
                            # the access token, and without it the auth step fails with
                            # "did not inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
 
+concurrency:
+  # Serialise the release runs of one ref: two of them pushing at once into the
+  # config repository is the same race the 4.8 workflow has to guard against.
+  group: release-commit-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-publish-release:
     name: Build, Push, Release
